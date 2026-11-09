@@ -106,6 +106,15 @@
   .addlabel { color: var(--muted); font-size: 14px; margin: 8px 0 6px; }
   .linkbtn { font: inherit; font-size: 14px; background: none; border: none; color: var(--warn); padding: 8px 0; cursor: pointer; }
   #extra .seg { margin-top: 8px; }
+  .thumbs { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; margin: 10px 0; }
+  .thumb { position: relative; aspect-ratio: 1; border-radius: 10px; overflow: hidden; background: var(--surface); border: 1px solid var(--line); }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .thumb button { position: absolute; top: 4px; right: 4px; width: 28px; height: 28px; border-radius: 50%; border: none;
+    background: rgba(0,0,0,0.65); color: #fff; font-size: 15px; line-height: 28px; padding: 0; }
+  .filebtn { display: inline-block; font-size: 15px; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--accent);
+    color: var(--accent); background: transparent; cursor: pointer; }
+  .filebtn input { display: none; }
+  .ver { color: var(--muted); font-size: 12px; margin-top: 18px; }
 </style>
 </head>
 <body>
@@ -132,12 +141,14 @@
     <h2>Отдельное упражнение</h2>
     <div class="seg" id="mode">
       <button data-v="road">Дорога</button>
+      <button data-v="neon">Неон</button>
+      <button data-v="pics">Мои картинки</button>
       <button data-v="rds">Стерео-фигуры</button>
       <button data-v="detect">Детектор подавления (тап)</button>
       <button data-v="fusion">Фузионный резерв (тап)</button>
       <button data-v="stream">Дихоптический поток</button>
       <button data-v="loom">Приближение</button>
-      <button data-v="jump">Прыжки глубины</button>
+      <button data-v="jump">Ближе-дальше</button>
       <button data-v="eyes">Мышцы глаз</button>
     </div>
   </section>
@@ -194,6 +205,28 @@
     </div>
   </section>
 
+  <section id="picsSec">
+    <h2>Мои картинки</h2>
+    <p class="hint">Добавь любые картинки из галереи. Хранятся только на этом телефоне. Каждая показывается 20 секунд.</p>
+    <label class="filebtn">Добавить картинки<input type="file" id="picsInput" accept="image/*" multiple></label>
+    <div class="thumbs" id="thumbs"></div>
+    <div class="seg" id="picsMode">
+      <button data-v="mix">По очереди</button>
+      <button data-v="split">Кусочки</button>
+      <button data-v="depth">Ближе-дальше</button>
+      <button data-v="drift">Слияние</button>
+    </div>
+  </section>
+
+  <section id="musicSec">
+    <h2>Музыка</h2>
+    <p class="hint">Синтвейв генерируется прямо в приложении. На айфоне выключи беззвучный режим, иначе звука не будет.</p>
+    <div class="seg" id="music">
+      <button data-v="1">Включена</button>
+      <button data-v="0">Выключена</button>
+    </div>
+  </section>
+
   <section id="loomSec">
     <h2>Скорость</h2>
     <div class="seg" id="loomSpd">
@@ -228,6 +261,7 @@
     <p class="note">После старта есть 6 секунд, чтобы вставить телефон в шлем. Чтобы прервать, вынь телефон и поверни вертикально.</p>
     <p class="note" id="modeNote"></p>
     <p class="note" id="syncNote">Настройки сохраняются в этом браузере.</p>
+    <p class="ver" id="ver"></p>
   </div>
 
   <div id="results">
@@ -311,7 +345,7 @@ async function connectDb() {
 const cfg = Object.assign({
   weak: 'right', lensMM: 63, pxmm: 6.04, dur: 300, nod: 1, level: 4, history: [],
   mode: 'detect', voffMM: 0, sizePct: 100, fusionHistory: [], crossHistory: [], strongPct: 60, loomSpeed: 'norm',
-  stereoHistory: [], progSel: 'daily', savedAt: 0,
+  stereoHistory: [], progSel: 'daily', savedAt: 0, music: 1, picsMode: 'mix',
   programs: [{ id: 'daily', name: 'Ежедневная', items: [
     { m: 'eyes', min: 2 }, { m: 'stream', min: 5 }, { m: 'loom', min: 3 }, { m: 'road', min: 3 }, { m: 'rds', min: 2 },
   ] }],
@@ -338,25 +372,32 @@ bindSeg('dur', 'dur', Number);
 bindSeg('nod', 'nod', Number);
 bindSeg('mode', 'mode', String);
 bindSeg('loomSpd', 'loomSpeed', String);
+bindSeg('music', 'music', Number);
+bindSeg('picsMode', 'picsMode', String);
 const LEDE = {
   detect: 'Оба глаза видят рамку и крестик в центре. Сильный глаз видит мерцающие полосы, слабый в случайный момент видит кольцо. Заметил кольцо — кивни или нажми.',
   fusion: 'Оба глаза видят одну и ту же картинку, и она медленно разъезжается. Кивни, когда начнёт двоиться. Потом картинки съезжаются обратно — кивни, когда снова станет одна.',
   stream: 'Без кнопок, просто смотри. По экрану плывут фигуры, но каждый глаз видит только свою часть кусочков. Целая картинка складывается, только когда работают оба глаза.',
   loom: 'Без кнопок, просто следи взглядом. Знак летит издали к тебе и уходит в сторону, как у дороги. Глубина задана настоящим стерео, глаза сводятся по мере приближения.',
-  jump: 'Без кнопок, просто смотри в центр. Картинка каждые несколько секунд прыгает ближе или дальше — держи её одной, глаза перестраиваются.',
+  jump: 'Без кнопок, смотри в центр. Картинка плавно приближается и удаляется, держи её одной. В шлеме это тренирует сведение и разведение глаз (фокус задают линзы и он не меняется).',
 };
-const PASSIVE = { stream: 1, loom: 1, jump: 1, eyes: 1, road: 1, rds: 1 };
+const PASSIVE = { stream: 1, loom: 1, jump: 1, eyes: 1, road: 1, rds: 1, neon: 1, pics: 1 };
 LEDE.road = 'Без кнопок. Едешь по дороге: разметка бежит навстречу, по сторонам проплывают столбики и знаки, всё в настоящем стерео. Смотри вперёд и по сторонам, как за рулём.';
+LEDE.neon = 'Без кнопок. Ретровейв: неоновая сетка до горизонта, закатное солнце, горы и неоновые ворота, сквозь которые ты проезжаешь. Всё в стерео, с синтвейвом.';
+LEDE.pics = 'Без кнопок. Твои картинки в трёх режимах: «Кусочки» — каждый глаз видит свои части картинки, целой она бывает только двумя глазами; «Ближе-дальше» — картинка плавно приближается и удаляется; «Слияние» — медленно разъезжается, держи её одной.';
 LEDE.rds = 'Без кнопок. Поле из случайных точек, внутри спрятана фигура — увидеть её можно только стерео, одним глазом её нет. В конце каждого уровня покажу, какая была фигура, а после сессии спрошу, до какого уровня ты её видел.';
 const MODE_NAMES = { eyes: 'Мышцы глаз', stream: 'Дихоптический поток', loom: 'Приближение', road: 'Дорога',
-  rds: 'Стерео-фигуры', jump: 'Прыжки глубины', detect: 'Детектор подавления', fusion: 'Фузионный резерв' };
-const PROG_MODES = ['eyes', 'stream', 'loom', 'road', 'rds', 'jump'];
+  rds: 'Стерео-фигуры', jump: 'Ближе-дальше', detect: 'Детектор подавления', fusion: 'Фузионный резерв',
+  neon: 'Неон', pics: 'Мои картинки' };
+const PROG_MODES = ['eyes', 'stream', 'loom', 'road', 'neon', 'pics', 'rds', 'jump'];
 LEDE.eyes = 'Без кнопок, следи глазами за жёлтой точкой, голову держи неподвижно. Три фазы по кругу: восьмёрка, прыжки центр ↔ край, и движение по кругу с приближением-удалением.';
 function paintMode() {
   document.getElementById('lede').textContent = LEDE[cfg.mode];
   document.getElementById('durSec').style.display = cfg.mode === 'fusion' ? 'none' : '';
   document.getElementById('balSec').style.display = PASSIVE[cfg.mode] ? '' : 'none';
-  document.getElementById('loomSec').style.display = (cfg.mode === 'loom' || cfg.mode === 'road') ? '' : 'none';
+  document.getElementById('loomSec').style.display = (cfg.mode === 'loom' || cfg.mode === 'road' || cfg.mode === 'neon') ? '' : 'none';
+  document.getElementById('musicSec').style.display = cfg.mode === 'neon' ? '' : 'none';
+  document.getElementById('picsSec').style.display = cfg.mode === 'pics' ? '' : 'none';
   document.getElementById('modeNote').textContent = cfg.mode === 'fusion'
     ? 'Одна сессия: 3 раза на сведение и 3 раза на разведение глаз, около 4 минут. Если вместо двоения одна из картинок пропадает — это подавление, тоже кивай.'
     : '';
@@ -759,21 +800,309 @@ function loomFrame(now) {
 }
 
 // ---- 3. Depth jumps (vergence facility) ----
-const JUMP = { NEAR_MM: 3.5, FAR_MM: -1.5, MIN_S: 2.2, MAX_S: 4 };
+const JUMP = { NEAR_MM: 3.5, FAR_MM: -1.5, MIN_S: 3, MAX_S: 5, MOVE_S: 0.7 };
+const easeInOut = k => (k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2);
+// smooth near/far value shared by "Ближе-дальше" and the pictures exercise
+function depthSwing(st, now) {
+  if (st.next == null) { st.near = false; st.from = st.to = st.cur = JUMP.FAR_MM; st.t0 = now; st.next = now + 3000; }
+  if (now >= st.next) {
+    st.near = !st.near; st.from = st.cur; st.to = st.near ? JUMP.NEAR_MM : JUMP.FAR_MM; st.t0 = now;
+    st.next = now + 1000 * (JUMP.MIN_S + Math.random() * (JUMP.MAX_S - JUMP.MIN_S));
+  }
+  const k = Math.min(1, (now - st.t0) / (JUMP.MOVE_S * 1000));
+  st.cur = st.from + (st.to - st.from) * easeInOut(k);
+  return st.cur;
+}
 function jumpFrame(now) {
-  if (!S.jp) S.jp = { near: false, next: now + 2500, cur: 0 };
-  const jp = S.jp;
-  if (now >= jp.next) { jp.near = !jp.near; jp.next = now + 1000 * (JUMP.MIN_S + Math.random() * (JUMP.MAX_S - JUMP.MIN_S)); }
-  jp.cur = jp.near ? JUMP.NEAR_MM : JUMP.FAR_MM;
-  const F = eyeFrames(jp.cur, Math.max(JUMP.NEAR_MM, -JUMP.FAR_MM));
+  if (!S.jp) S.jp = {};
+  const d = depthSwing(S.jp, now);
+  const near01 = (d - JUMP.FAR_MM) / (JUMP.NEAR_MM - JUMP.FAR_MM);
+  const F = eyeFrames(d, Math.max(JUMP.NEAR_MM, -JUMP.FAR_MM));
   drawFrame(F.left, 'rgba(230,230,230,0.85)'); drawFrame(F.right, 'rgba(230,230,230,0.85)');
   [['left', F.left], ['right', F.right]].forEach(([eye, f]) => {
     ctx.save(); ctx.globalAlpha = eyeAlpha(eye);
-    drawFusionPicture(f, eye);
+    drawFusionPicture({ cx: f.cx, cy: f.cy, b: f.b * (0.8 + 0.2 * near01) }, eye); // nearer = a little bigger
     ctx.restore();
   });
-  const label = jp.near ? 'близко' : 'далеко';
+  const label = S.jp.near ? 'ближе' : 'дальше';
   drawLabel(F.left, label); drawLabel(F.right, label);
+}
+
+// ---- Neon (retrowave) road, true stereo ----
+const NEON = { CAMY: 1.15, EYE: 0.045, ZMIN: 1.6, ZMAX: 220, GRID: 5, CY: '#29e7ff', MG: '#ff3ec8' };
+function glowPath(pts, color, w, a) {
+  if (pts.length < 2) return;
+  const base = ctx.globalAlpha;
+  ctx.strokeStyle = color; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  [[w * 3.2, 0.22], [w, 1]].forEach(([lw, k]) => {
+    ctx.globalAlpha = base * a * k; ctx.lineWidth = lw;
+    ctx.beginPath(); pts.forEach((q, i) => (i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y))); ctx.stroke();
+  });
+  ctx.globalAlpha = base;
+}
+const NEON_MOUNTAINS = [[-420, 0], [-360, 38], [-310, 12], [-250, 55], [-190, 20], [-140, 44], [-95, 8], [-60, 0],
+  [60, 0], [100, 14], [150, 48], [205, 18], [260, 62], [320, 24], [380, 46], [440, 0]];
+function neonFrame(now) {
+  if (!S.nw) S.nw = { dist: 0, t: 0, lastT: 0, gates: [], nextGate: 45 };
+  const R = S.nw;
+  const dt = Math.min(0.1, (now - (R.lastT || now)) / 1000); R.lastT = now;
+  R.dist += (ROAD.SPEED[cfg.loomSpeed] || ROAD.SPEED.norm) * dt; R.t += dt;
+  const curv = 0.0007 * Math.sin(R.t * 0.11);
+  while (R.nextGate < R.dist + NEON.ZMAX) { R.gates.push({ z: R.nextGate, c: Math.random() < 0.5 ? NEON.CY : NEON.MG }); R.nextGate += 55 + Math.random() * 55; }
+  R.gates = R.gates.filter(g => g.z - R.dist > NEON.ZMIN);
+  const F = eyeFrames(), Fp = FZ.FOCAL_MM * cfg.pxmm;
+  const zs = []; for (let z = NEON.ZMIN; z < NEON.ZMAX; z *= 1.08) zs.push(z); zs.push(NEON.ZMAX);
+
+  [['left', F.left, -1], ['right', F.right, 1]].forEach(([eye, f, sg]) => {
+    const ex = sg * NEON.EYE, A = eyeAlpha(eye);
+    const P = (X, Y, Z) => ({ x: f.cx + Fp * (X + curv * Z * Z - ex) / Z, y: f.cy - Fp * (Y - NEON.CAMY) / Z });
+    const top = f.cy - f.b, hz = f.cy;
+    ctx.save();
+    ctx.beginPath(); ctx.rect(f.cx - f.b, f.cy - f.b, 2 * f.b, 2 * f.b); ctx.clip();
+    // scene is drawn opaque; the strong eye is dimmed at the end, so layers never show through each other
+    // sky
+    const sky = ctx.createLinearGradient(0, top, 0, hz);
+    sky.addColorStop(0, '#07011a'); sky.addColorStop(0.65, '#2a0a52'); sky.addColorStop(1, '#7a1a6e');
+    ctx.fillStyle = sky; ctx.fillRect(f.cx - f.b, top, 2 * f.b, f.b);
+    // sun at infinity (no disparity), striped bottom half
+    const sr = f.b * 0.4, sx = f.cx, sy = hz - f.b * 0.16;
+    ctx.save();
+    ctx.beginPath(); ctx.arc(sx, sy, sr, 0, Math.PI * 2); ctx.clip();
+    const sun = ctx.createLinearGradient(0, sy - sr, 0, sy + sr);
+    sun.addColorStop(0, '#ffe45c'); sun.addColorStop(0.55, '#ff8a3d'); sun.addColorStop(1, '#ff2fa0');
+    ctx.fillStyle = sun; ctx.fillRect(sx - sr, sy - sr, 2 * sr, 2 * sr);
+    ctx.fillStyle = '#3a0d5e';
+    for (let i = 0; i < 6; i++) { const y = sy + sr * (0.08 + i * 0.16); ctx.fillRect(sx - sr, y, 2 * sr, sr * 0.025 * (i + 1.5)); }
+    ctx.restore();
+    // mountains (far, no road curvature)
+    const MZ = 650;
+    const mpts = NEON_MOUNTAINS.map(([X, Y]) => ({ x: f.cx + Fp * (X - ex) / MZ, y: f.cy - Fp * (Y - NEON.CAMY) / MZ }));
+    ctx.fillStyle = '#120327';
+    [mpts.slice(0, 8), mpts.slice(8)].forEach(seg => {
+      ctx.beginPath(); ctx.moveTo(seg[0].x, hz); seg.forEach(q => ctx.lineTo(q.x, q.y)); ctx.lineTo(seg[seg.length - 1].x, hz); ctx.closePath(); ctx.fill();
+      glowPath(seg, NEON.CY, 1.4, 0.9);
+    });
+    // ground
+    ctx.fillStyle = '#05000d'; ctx.fillRect(f.cx - f.b, hz, 2 * f.b, f.b);
+    // grid: lines along the road
+    for (let X = -60; X <= 60; X += 5) {
+      if (Math.abs(X) < 4) continue;
+      glowPath(zs.map(z => P(X, 0, z)), NEON.MG, 1, 0.55);
+    }
+    // grid: cross lines rushing toward you
+    for (let z0 = NEON.GRID - (R.dist % NEON.GRID); z0 < NEON.ZMAX; z0 += NEON.GRID) {
+      if (z0 < NEON.ZMIN) continue;
+      const fade = Math.max(0, 1 - z0 / NEON.ZMAX);
+      glowPath([P(-60, 0, z0), P(-3.6, 0, z0)], NEON.MG, 1, 0.7 * fade);
+      glowPath([P(3.6, 0, z0), P(60, 0, z0)], NEON.MG, 1, 0.7 * fade);
+    }
+    // road
+    ctx.fillStyle = '#0b0220'; ctx.beginPath();
+    zs.forEach((z, i) => { const q = P(-3.6, 0, z); i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y); });
+    zs.slice().reverse().forEach(z => { const q = P(3.6, 0, z); ctx.lineTo(q.x, q.y); });
+    ctx.closePath(); ctx.fill();
+    glowPath(zs.map(z => P(-3.4, 0, z)), NEON.CY, 2, 1);
+    glowPath(zs.map(z => P(3.4, 0, z)), NEON.CY, 2, 1);
+    for (let z0 = 12 - (R.dist % 12) - 12; z0 < NEON.ZMAX; z0 += 12) {
+      const a = Math.max(z0, NEON.ZMIN), b = Math.min(z0 + 4, NEON.ZMAX); if (b <= a) continue;
+      glowPath([P(0, 0, a), P(0, 0, b)], NEON.MG, 2.5, 0.9);
+    }
+    // neon gates you drive through, far → near
+    R.gates.map(g => ({ z: g.z - R.dist, c: g.c })).filter(g => g.z > NEON.ZMIN && g.z < NEON.ZMAX)
+      .sort((a, b) => b.z - a.z).forEach(g => {
+        const fade = Math.min(1, (NEON.ZMAX - g.z) / 60);
+        const w = Math.max(1, 6 / Math.sqrt(g.z));
+        glowPath([P(-5, 0, g.z), P(-5, 4.6, g.z), P(5, 4.6, g.z), P(5, 0, g.z)], g.c, w, fade);
+        glowPath([P(-4.2, 0.4, g.z), P(-4.2, 3.9, g.z), P(4.2, 3.9, g.z), P(4.2, 0.4, g.z)], g.c, w * 0.5, 0.6 * fade);
+      });
+    if (A < 1) { ctx.globalAlpha = 1; ctx.fillStyle = `rgba(0,0,0,${1 - A})`; ctx.fillRect(f.cx - f.b, f.cy - f.b, 2 * f.b, 2 * f.b); }
+    ctx.restore();
+  });
+  drawFrame(F.left, 'rgba(255,62,200,0.6)'); drawFrame(F.right, 'rgba(255,62,200,0.6)');
+}
+
+// ---- Synthwave generator (Web Audio, no external files) ----
+const Music = (() => {
+  let timer = null, nextT = 0, step = 0, master = null, echo = null, noise = null;
+  const BPM = 96, S16 = 60 / BPM / 4;
+  const CHORDS = [[57, 60, 64], [53, 57, 60], [48, 52, 55], [55, 59, 62]]; // Am F C G
+  const hz = m => 440 * Math.pow(2, (m - 69) / 12);
+  function setup() {
+    master = audio.createGain(); master.gain.value = 0.0001; master.connect(audio.destination);
+    echo = audio.createDelay(1); echo.delayTime.value = S16 * 3;
+    const fb = audio.createGain(); fb.gain.value = 0.32; const wet = audio.createGain(); wet.gain.value = 0.3;
+    echo.connect(fb); fb.connect(echo); echo.connect(wet); wet.connect(master);
+    noise = audio.createBuffer(1, audio.sampleRate, audio.sampleRate);
+    const d = noise.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  }
+  function tone(type, f, t, dur, vol, cutoff, attack, toEcho) {
+    const o = audio.createOscillator(), g = audio.createGain(), lp = audio.createBiquadFilter();
+    o.type = type; o.frequency.value = f; lp.type = 'lowpass'; lp.frequency.value = cutoff;
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(vol, t + attack);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(lp); lp.connect(g); g.connect(master); if (toEcho) g.connect(echo);
+    o.start(t); o.stop(t + dur + 0.05);
+  }
+  function hit(t, filterType, freq, vol, dur) {
+    const src = audio.createBufferSource(), f = audio.createBiquadFilter(), g = audio.createGain();
+    src.buffer = noise; f.type = filterType; f.frequency.value = freq;
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(f); f.connect(g); g.connect(master); src.start(t); src.stop(t + dur + 0.02);
+  }
+  function kick(t) {
+    const o = audio.createOscillator(), g = audio.createGain();
+    o.frequency.setValueAtTime(140, t); o.frequency.exponentialRampToValueAtTime(42, t + 0.14);
+    g.gain.setValueAtTime(0.9, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.32);
+    o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.35);
+  }
+  function schedule() {
+    while (nextT < audio.currentTime + 0.15) {
+      const s = step % 16, ch = CHORDS[Math.floor(step / 16) % 4];
+      if (s % 4 === 0) kick(nextT);
+      if (s === 4 || s === 12) hit(nextT, 'bandpass', 1800, 0.5, 0.18);
+      if (s % 2 === 1) hit(nextT, 'highpass', 7500, 0.12, 0.05);
+      if (s % 2 === 0) tone('sawtooth', hz(ch[0] - 24), nextT, S16 * 1.8, 0.2, 650, 0.005, false);
+      tone('square', hz(ch[[0, 1, 2, 1][s % 4]] + 12), nextT, S16 * 0.9, 0.06, 2600, 0.004, true);
+      if (s === 0) ch.forEach(n => tone('sawtooth', hz(n), nextT, S16 * 16, 0.025, 1300, 0.6, false));
+      nextT += S16; step++;
+    }
+  }
+  return {
+    on() {
+      if (!audio || timer) return;
+      if (!master) setup();
+      nextT = audio.currentTime + 0.06; step = 0;
+      master.gain.setTargetAtTime(0.32, audio.currentTime, 0.4);
+      timer = setInterval(schedule, 25);
+    },
+    off() {
+      if (!timer) return;
+      clearInterval(timer); timer = null;
+      if (master) master.gain.setTargetAtTime(0.0001, audio.currentTime, 0.15);
+    },
+    sync(want) { want ? this.on() : this.off(); },
+  };
+})();
+
+// ---- My pictures: stored on the phone (IndexedDB), used in three modes ----
+const PicDB = {
+  db: null,
+  open() {
+    return new Promise(res => {
+      try {
+        const r = indexedDB.open('eyegym_pics', 1);
+        r.onupgradeneeded = () => r.result.createObjectStore('pics', { keyPath: 'id' });
+        r.onsuccess = () => { this.db = r.result; res(this.db); };
+        r.onerror = () => res(null);
+      } catch (e) { res(null); }
+    });
+  },
+  req(mode, fn) {
+    return new Promise(res => {
+      if (!this.db) return res(null);
+      try { const q = fn(this.db.transaction('pics', mode).objectStore('pics')); q.onsuccess = () => res(q.result); q.onerror = () => res(null); }
+      catch (e) { res(null); }
+    });
+  },
+  all() { return this.req('readonly', st => st.getAll()).then(r => r || []); },
+  put(rec) { return this.req('readwrite', st => st.put(rec)); },
+  del(id) { return this.req('readwrite', st => st.delete(id)); },
+};
+let PICS = [];
+function downscale(file, max) {
+  return new Promise(res => {
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => {
+      const k = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(img.naturalWidth * k)); c.height = Math.max(1, Math.round(img.naturalHeight * k));
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      c.toBlob(b => res(b), 'image/jpeg', 0.88);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); res(null); };
+    img.src = url;
+  });
+}
+async function loadPics() {
+  if (!PicDB.db) await PicDB.open();
+  const recs = (await PicDB.all()).sort((a, b) => a.t - b.t);
+  PICS.forEach(p => URL.revokeObjectURL(p.url));
+  PICS = recs.map(r => { const url = URL.createObjectURL(r.blob); const img = new Image(); img.src = url; return { id: r.id, url, img }; });
+  renderPics();
+}
+async function addPics(files) {
+  for (const f of files) {
+    const blob = await downscale(f, 1200);
+    if (blob) await PicDB.put({ id: 'i' + Date.now() + Math.random().toString(36).slice(2, 7), t: Date.now(), blob });
+  }
+  await loadPics();
+}
+function renderPics() {
+  const box = document.getElementById('thumbs'); if (!box) return;
+  box.innerHTML = '';
+  if (!PICS.length) { box.appendChild(el('p', { className: 'hint' }, 'Пока нет картинок.')); return; }
+  PICS.forEach(p => {
+    const t = el('div', { className: 'thumb' });
+    t.appendChild(el('img', { src: p.url, alt: '' }));
+    const x = el('button', {}, '×'); x.setAttribute('aria-label', 'Удалить картинку');
+    x.onclick = async () => { await PicDB.del(p.id); await loadPics(); };
+    t.appendChild(x); box.appendChild(t);
+  });
+}
+function drawCover(c, img, x, y, w, h) {
+  const s = Math.max(w / img.naturalWidth, h / img.naturalHeight);
+  const dw = img.naturalWidth * s, dh = img.naturalHeight * s;
+  c.drawImage(img, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
+}
+const PIC_S = 20;
+function picsFrame(now) {
+  if (!S.pc) S.pc = { t0: now, blobs: makeBlobs(), lastT: 0, sw: {} };
+  const pc = S.pc;
+  const dt = Math.min(0.1, (now - (pc.lastT || now)) / 1000); pc.lastT = now;
+  if (!PICS.length) {
+    const F = eyeFrames();
+    [F.left, F.right].forEach(f => { drawFrame(f, 'rgba(230,230,230,0.6)'); drawText(f, 'Добавь картинки\nв настройках', Math.max(14, f.b * 0.11)); });
+    return;
+  }
+  const elS = (now - pc.t0) / 1000, n = Math.floor(elS / PIC_S), tIn = elS % PIC_S;
+  const pic = PICS[n % PICS.length].img;
+  const mode = cfg.picsMode === 'mix' ? ['split', 'depth', 'drift'][n % 3] : cfg.picsMode;
+  let d = 0;
+  if (mode === 'depth') d = depthSwing(pc.sw, now);
+  else if (mode === 'drift') d = 1.2 + 2.6 * Math.sin(2 * Math.PI * tIn / 12);   // −1.4 … +3.8 mm, slow
+  const F = eyeFrames(d, 4);
+  const fadeA = Math.min(1, tIn / 0.6, (PIC_S - tIn) / 0.6);
+  if (!pic.complete || !pic.naturalWidth) { drawFrame(F.left, 'rgba(230,230,230,0.6)'); drawFrame(F.right, 'rgba(230,230,230,0.6)'); return; }
+
+  if (mode === 'split') {
+    pc.blobs.forEach((o, i) => { o.x += o.vx * dt; o.y += o.vy * dt; if (Math.abs(o.x) > 1.5 || Math.abs(o.y) > 1.5) pc.blobs[i] = newBlob(false); });
+    const dpr = cv.width / W, size = Math.round(2 * F.left.b * dpr);
+    [off.scene, off.mask, off.tmp].forEach(cn => { if (cn.width !== size) { cn.width = size; cn.height = size; } });
+    const sc = off.scene.getContext('2d'), mc = off.mask.getContext('2d'), tc = off.tmp.getContext('2d');
+    sc.clearRect(0, 0, size, size); drawCover(sc, pic, 0, 0, size, size);
+    drawMask(mc, size, pc.blobs);
+    [['left', F.left], ['right', F.right]].forEach(([eye, f]) => {
+      tc.globalCompositeOperation = 'source-over'; tc.clearRect(0, 0, size, size); tc.drawImage(off.scene, 0, 0);
+      tc.globalCompositeOperation = eye === 'left' ? 'destination-in' : 'destination-out'; tc.drawImage(off.mask, 0, 0);
+      ctx.save(); ctx.globalAlpha = eyeAlpha(eye) * fadeA;
+      ctx.drawImage(off.tmp, f.cx - f.b, f.cy - f.b, 2 * f.b, 2 * f.b); ctx.restore();
+    });
+  } else {
+    const near01 = mode === 'depth' ? (d - JUMP.FAR_MM) / (JUMP.NEAR_MM - JUMP.FAR_MM) : 1;
+    [['left', F.left], ['right', F.right]].forEach(([eye, f]) => {
+      const b = f.b * (mode === 'depth' ? 0.82 + 0.18 * near01 : 1);
+      ctx.save(); ctx.beginPath(); ctx.rect(f.cx - f.b, f.cy - f.b, 2 * f.b, 2 * f.b); ctx.clip();
+      ctx.globalAlpha = eyeAlpha(eye) * fadeA;
+      drawCover(ctx, pic, f.cx - b, f.cy - b, 2 * b, 2 * b);
+      ctx.restore();
+    });
+  }
+  drawFrame(F.left, 'rgba(230,230,230,0.85)'); drawFrame(F.right, 'rgba(230,230,230,0.85)');
+  if (tIn < 2.5) {
+    const label = { split: 'кусочки', depth: 'ближе-дальше', drift: 'держи одной' }[mode];
+    drawLabel(F.left, label); drawLabel(F.right, label);
+  }
 }
 
 // ---- 4. Eye muscles: figure-8 pursuit, saccades, 3D pursuit with vergence ----
@@ -1126,6 +1455,7 @@ function frame(now) {
   // iOS home-screen apps can change size after rotation without a timely resize event:
   // keep the canvas buffer equal to its on-screen size, or everything gets squashed.
   if (cv.clientWidth !== W || cv.clientHeight !== H) { resize(); checkOrientation(); }
+  Music.sync(!S.paused && S.mode === 'neon' && !!cfg.music && now >= S.countdownEnd);
   if (S.paused) return;
 
   stripeOff += 0.9; flick += 0.05;
@@ -1163,6 +1493,8 @@ function frame(now) {
   if (S.mode === 'eyes') { musclesFrame(now); return; }
   if (S.mode === 'road') { roadFrame(now); return; }
   if (S.mode === 'rds') { rdsFrame(now); return; }
+  if (S.mode === 'neon') { neonFrame(now); return; }
+  if (S.mode === 'pics') { picsFrame(now); return; }
   if (S.mode === 'cross') { crossFrame(now); return; }
 
   // --- training trial state machine ---
@@ -1240,6 +1572,7 @@ function checkOrientation() {
     if (S.cx) { S.cx.finalUntil += d; S.cx.lastT = performance.now(); }
     if (S.ms) { S.ms.start += d; S.ms.sacc.next += d; }
     if (S.rd) S.rd.t0 += d;
+    if (S.pc) S.pc.t0 += d;
     if (S.prog) { S.prog.transUntil += d; S.prog.itemEnd += d; }
     S.paused = false; rot.style.display = 'none';
   }
@@ -1255,7 +1588,8 @@ function progNext(now, first) {
   if (P.idx >= P.items.length) { finish(); return; }
   if (!first) beep(660, 150);
   const it = P.items[P.idx];
-  S.mode = it.m; S.st = null; S.lm = null; S.jp = null; S.ms = null; S.rd = null; S.rw = null;
+  if (it.m === 'pics' && !PICS.length) { progNext(now, first); return; }   // no pictures yet: skip
+  S.mode = it.m; S.st = null; S.lm = null; S.jp = null; S.ms = null; S.rd = null; S.rw = null; S.nw = null; S.pc = null;
   P.transUntil = first ? now : now + 5000;
   P.itemEnd = P.transUntil + it.min * 60000;
   P.done = P.idx;
@@ -1264,7 +1598,7 @@ function progNext(now, first) {
 async function start(mode) {
   unlockAudio();
   await enableMotion();
-  S.motionEvents = 0; S.st = null; S.lm = null; S.jp = null; S.ms = null; S.rd = null; S.rw = null;
+  S.motionEvents = 0; S.st = null; S.lm = null; S.jp = null; S.ms = null; S.rd = null; S.rw = null; S.nw = null; S.pc = null;
   S.prog = mode === 'program'
     ? { items: curProg().items.map(x => ({ ...x })), idx: -1, transUntil: 0, itemEnd: 0, done: -1, t0: 0 }
     : null;
@@ -1294,6 +1628,7 @@ async function start(mode) {
 function finish() {
   if (!S.active) return;
   S.active = false;
+  Music.off();
   vr.style.display = 'none'; rot.style.display = 'none';
   document.getElementById('setup').style.display = 'block';
   try { wakeLock && wakeLock.release(); } catch (e) {}
@@ -1468,6 +1803,29 @@ document.getElementById('marksCtl').addEventListener('click', e => {
   lens.value = cfg.lensMM; paintLens(); save();
 });
 // account sync is off: asking for it shows a sign-in banner on claude.ai
+document.getElementById('picsInput').addEventListener('change', async e => {
+  const files = [...e.target.files]; e.target.value = '';
+  if (files.length) await addPics(files);
+});
+loadPics();
+
+// ---- Auto-update for the home-screen app (iOS caches it hard) ----
+const APP_VERSION = '2026.11.09-3';
+document.getElementById('ver').textContent = 'версия ' + APP_VERSION;
+async function checkUpdate() {
+  if (S.active || location.protocol === 'file:') return;
+  try {
+    const r = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' });
+    if (!r.ok) return;
+    const j = await r.json();
+    if (!j.v || j.v === APP_VERSION) return;
+    if (sessionStorage.getItem('eyegym_reloaded_for') === j.v) return;   // never loop
+    sessionStorage.setItem('eyegym_reloaded_for', j.v);
+    location.replace(location.pathname + '?v=' + encodeURIComponent(j.v));
+  } catch (e) {}
+}
+checkUpdate();
+document.addEventListener('visibilitychange', () => { if (!document.hidden) checkUpdate(); });
 </script>
 </body>
 </html>
