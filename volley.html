@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>EyeGym — Приём подачи</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#000; --surface:#111118; --border:#1e1e2e; --text:#e8e8f0; --muted:#666680; --accent:#f59e0b; --hit:#10b981; --err:#ef4444; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text); font-family:'Syne',sans-serif; height:100vh; height:100dvh; overflow:hidden; display:flex; flex-direction:column; user-select:none; -webkit-user-select:none; }
+  header { padding:12px 24px; display:flex; align-items:center; gap:20px; border-bottom:1px solid var(--border); background:#0a0a0f; flex-shrink:0; }
+  .back-btn { display:flex; align-items:center; gap:8px; color:var(--muted); text-decoration:none; font-family:'DM Mono',monospace; font-size:12px; }
+  .back-btn svg { width:16px; height:16px; }
+  .header-title { font-size:16px; font-weight:700; flex:1; }
+  .hud { display:flex; gap:20px; }
+  .hud-item { display:flex; flex-direction:column; align-items:flex-end; gap:2px; }
+  .hud-val { font-family:'DM Mono',monospace; font-size:18px; color:var(--accent); line-height:1; }
+  .hud-label { font-family:'DM Mono',monospace; font-size:9px; color:var(--muted); text-transform:uppercase; letter-spacing:1.5px; }
+  .settings-bar { padding:8px 24px; display:flex; align-items:center; gap:8px; border-bottom:1px solid var(--border); background:#0a0a0f; flex-shrink:0; flex-wrap:wrap; }
+  .settings-label { font-family:'DM Mono',monospace; font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:2px; }
+  .btn-group { display:flex; gap:4px; flex-wrap:wrap; }
+  .btn { font-family:'DM Mono',monospace; font-size:12px; padding:5px 10px; border-radius:8px; border:1px solid var(--border); background:var(--surface); color:var(--muted); cursor:pointer; white-space:nowrap; }
+  .btn.active { border-color:var(--accent); background:rgba(245,158,11,0.12); color:var(--accent); }
+  .sep { width:1px; height:20px; background:var(--border); margin:0 4px; }
+  .main { flex:1; position:relative; overflow:hidden; }
+  #cv { position:absolute; inset:0; width:100%; height:100%; display:block; }
+
+  /* Zone answer pad */
+  #pad { position:absolute; right:16px; bottom:16px; z-index:10; display:none; grid-template-columns:auto repeat(3,52px); gap:4px; align-items:center; background:rgba(10,10,15,0.85); padding:10px; border-radius:12px; border:1px solid var(--border); }
+  #pad.show { display:grid; }
+  .pad-lbl { font-family:'DM Mono',monospace; font-size:10px; color:var(--muted); text-align:right; padding-right:6px; }
+  .pad-btn { height:40px; border-radius:8px; border:1px solid var(--border); background:var(--surface); color:var(--text); font-family:'DM Mono',monospace; font-size:11px; cursor:pointer; }
+  .pad-btn:hover { border-color:var(--accent); }
+  .pad-btn.ok { border-color:var(--hit); background:rgba(16,185,129,0.25); }
+  .pad-btn.bad { border-color:var(--err); background:rgba(239,68,68,0.2); }
+  .pad-head { font-family:'DM Mono',monospace; font-size:10px; color:var(--muted); text-align:center; }
+
+  #msg { position:absolute; top:14px; left:50%; transform:translateX(-50%); z-index:10; font-family:'DM Mono',monospace; font-size:14px; color:var(--text); text-align:center; pointer-events:none; text-shadow:0 0 6px #000; }
+
+  #overlay { position:absolute; inset:0; z-index:20; display:flex; flex-direction:column; align-items:center; justify-content:center; background:rgba(10,10,15,0.94); gap:16px; padding:20px; overflow:auto; }
+  .ov-title { font-size:38px; font-weight:800; letter-spacing:-2px; }
+  .ov-sub { font-family:'DM Mono',monospace; font-size:12px; color:var(--muted); text-align:center; line-height:1.9; max-width:520px; }
+  .ov-sub strong { color:var(--accent); font-weight:500; }
+  .ov-stats { display:flex; gap:20px; padding:14px 22px; background:var(--surface); border:1px solid var(--border); border-radius:14px; flex-wrap:wrap; justify-content:center; }
+  .ov-s { text-align:center; min-width:80px; }
+  .ov-v { font-family:'DM Mono',monospace; font-size:24px; color:var(--accent); }
+  .ov-l { font-family:'DM Mono',monospace; font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-top:3px; }
+  .start-btn { font-family:'Syne',sans-serif; font-size:16px; font-weight:700; padding:13px 40px; border-radius:12px; border:1px solid var(--accent); background:rgba(245,158,11,0.1); color:var(--accent); cursor:pointer; letter-spacing:1px; }
+
+  /* SBS (VR Box) mode: hide all chrome */
+  body.sbs header, body.sbs .settings-bar { display:none; }
+  #exit-sbs { position:absolute; top:6px; left:6px; z-index:15; display:none; width:36px; height:36px; border-radius:50%; border:1px solid #333; background:rgba(0,0,0,0.6); color:#888; font-size:16px; }
+  body.sbs #exit-sbs { display:block; }
+</style>
+</head>
+<body>
+<header>
+  <a href="all.html" class="back-btn"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 3 L5 8 L10 13"/></svg>Назад</a>
+  <div class="header-title">Приём подачи</div>
+  <div class="hud">
+    <div class="hud-item"><div class="hud-val" id="hud-r">0/20</div><div class="hud-label">Подача</div></div>
+    <div class="hud-item"><div class="hud-val" id="hud-d">—</div><div class="hud-label">Глубина</div></div>
+    <div class="hud-item"><div class="hud-val" id="hud-s">0</div><div class="hud-label">Очки</div></div>
+  </div>
+</header>
+<div class="settings-bar">
+  <span class="settings-label">Задача</span>
+  <div class="btn-group" id="task-btns">
+    <button class="btn active" data-v="zone">Куда упадёт</button>
+    <button class="btn" data-v="timing">Тайминг приёма</button>
+  </div>
+  <div class="sep"></div>
+  <span class="settings-label">Экран</span>
+  <div class="btn-group" id="disp-btns">
+    <button class="btn active" data-v="anaglyph">Анаглиф</button>
+    <button class="btn" data-v="sbs">VR Box</button>
+    <button class="btn" data-v="mono">Без стерео</button>
+  </div>
+  <div class="sep"></div>
+  <span class="settings-label">Подсказки</span>
+  <div class="btn-group" id="cue-btns">
+    <button class="btn active" data-v="1">1: размер+тень+стерео</button>
+    <button class="btn" data-v="2">2: размер+стерео</button>
+    <button class="btn" data-v="3">3: только стерео</button>
+  </div>
+  <div class="sep"></div>
+  <span class="settings-label">Скорость</span>
+  <div class="btn-group" id="spd-btns">
+    <button class="btn active" data-v="0.5">×0.5</button>
+    <button class="btn" data-v="0.75">×0.75</button>
+    <button class="btn" data-v="1">Реальная</button>
+  </div>
+  <div class="sep"></div>
+  <span class="settings-label">Видно полёт</span>
+  <div class="btn-group" id="occ-btns">
+    <button class="btn active" data-v="1">100%</button>
+    <button class="btn" data-v="0.6">60%</button>
+    <button class="btn" data-v="0.4">40%</button>
+  </div>
+</div>
+
+<div class="main" id="main">
+  <canvas id="cv"></canvas>
+  <div id="msg"></div>
+  <button id="exit-sbs">✕</button>
+
+  <div id="pad">
+    <div></div><div class="pad-head">Лево</div><div class="pad-head">Центр</div><div class="pad-head">Право</div>
+    <div class="pad-lbl">у сетки</div>
+    <button class="pad-btn" data-z="2-0">7 / Q</button><button class="pad-btn" data-z="2-1">8 / W</button><button class="pad-btn" data-z="2-2">9 / E</button>
+    <div class="pad-lbl">середина</div>
+    <button class="pad-btn" data-z="1-0">4 / A</button><button class="pad-btn" data-z="1-1">5 / S</button><button class="pad-btn" data-z="1-2">6 / D</button>
+    <div class="pad-lbl">задняя</div>
+    <button class="pad-btn" data-z="0-0">1 / Z</button><button class="pad-btn" data-z="0-1">2 / X</button><button class="pad-btn" data-z="0-2">3 / C</button>
+  </div>
+
+  <div id="overlay">
+    <div class="ov-title" id="ov-title">Приём подачи</div>
+    <div class="ov-sub" id="ov-sub">
+      Ты стоишь за своей задней линией, подаёт соперник с той стороны.<br><br>
+      <strong>Куда упадёт</strong> — как можно раньше выбери зону приземления (3×3).<br>
+      Чем раньше верный ответ — тем больше очков. Отдельно считается<br>точность по глубине и по лево/право.<br><br>
+      <strong>Тайминг приёма</strong> — мяч летит к тебе. Нажми пробел / тапни<br>ровно когда он долетит до кольца-платформы. Работает в VR Box (кнопка шлема).<br><br>
+      Анаглиф: красная линза — левый глаз, синяя — правый.<br>
+      Начинай с подсказок «1», переходи на «3», когда точность глубины &gt; 70%.
+    </div>
+    <div id="ov-stats" class="ov-stats" style="display:none"></div>
+    <button class="start-btn" id="start-btn">НАЧАТЬ</button>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// SETTINGS
+// ============================================================
+let task = 'zone', disp = 'anaglyph', cue = 1, speed = 0.5, occl = 1;
+const ROUNDS = 20;
+
+// ============================================================
+// WORLD (meters). Own half: z 0 (own baseline) .. 9 (net). Opponent: 9..18.
+// Camera behind own baseline, elevated.
+// ============================================================
+const CAM = { y: 2.2, z: -6 };
+const EYE = 0.032;          // half interocular distance
+const DISP_GAIN = 2.5;      // exaggerated disparity (large disparities help stereo-deficient vision)
+const DS = 10.5;            // zero-disparity plane at middle of own court (z=4.5)
+const G = 9.8;
+const BALL_R = 0.105;
+
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+let W = 0, H = 0, DPR = 1;
+
+function resize() {
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = cv.clientWidth; H = cv.clientHeight;
+  cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+window.addEventListener('resize', resize);
+
+// Viewport: {ox, w, h}. Projection for an eye with lateral offset ex.
+function makeVP(ox, w, h) {
+  return { ox, w, h, F: Math.min(w * 0.55, h * 0.95), cx: ox + w / 2, cy: h * (disp === 'sbs' ? 0.4 : 0.33) };
+}
+function proj(p, ex, vp) {
+  const dz = p.z - CAM.z;
+  const sx = vp.cx + vp.F * ((p.x - ex) / dz + ex / DS);
+  const sy = vp.cy - vp.F * (p.y - CAM.y) / dz;
+  return { x: sx, y: sy, k: vp.F / dz };
+}
+
+// ============================================================
+// SCENE DRAWING (one eye)
+// col(a) -> css color string for this eye at alpha a
+// ============================================================
+function line3(a, b, ex, vp, col, alpha, w) {
+  const pa = proj(a, ex, vp), pb = proj(b, ex, vp);
+  ctx.strokeStyle = col(alpha); ctx.lineWidth = w;
+  ctx.beginPath(); ctx.moveTo(pa.x, pa.y); ctx.lineTo(pb.x, pb.y); ctx.stroke();
+}
+
+function drawCourt(ex, vp, col) {
+  const L = 0.55;
+  // sidelines & baselines
+  line3({x:-4.5,y:0,z:0},{x:-4.5,y:0,z:18},ex,vp,col,L,1.5);
+  line3({x:4.5,y:0,z:0},{x:4.5,y:0,z:18},ex,vp,col,L,1.5);
+  line3({x:-4.5,y:0,z:0},{x:4.5,y:0,z:0},ex,vp,col,L,1.5);
+  line3({x:-4.5,y:0,z:18},{x:4.5,y:0,z:18},ex,vp,col,L,1.5);
+  line3({x:-4.5,y:0,z:9},{x:4.5,y:0,z:9},ex,vp,col,L,1.5);
+  // attack lines
+  line3({x:-4.5,y:0,z:6},{x:4.5,y:0,z:6},ex,vp,col,0.3,1);
+  line3({x:-4.5,y:0,z:12},{x:4.5,y:0,z:12},ex,vp,col,0.3,1);
+  // zone guides in own half (faint)
+  ctx.setLineDash([4, 6]);
+  line3({x:-1.5,y:0,z:0},{x:-1.5,y:0,z:9},ex,vp,col,0.18,1);
+  line3({x:1.5,y:0,z:0},{x:1.5,y:0,z:9},ex,vp,col,0.18,1);
+  line3({x:-4.5,y:0,z:3},{x:4.5,y:0,z:3},ex,vp,col,0.18,1);
+  ctx.setLineDash([]);
+  // net
+  const nt = 2.43, nb = 1.43;
+  line3({x:-5,y:nt,z:9},{x:5,y:nt,z:9},ex,vp,col,0.8,2);
+  line3({x:-5,y:nb,z:9},{x:5,y:nb,z:9},ex,vp,col,0.35,1);
+  for (let x = -5; x <= 5; x += 0.5) line3({x,y:nb,z:9},{x,y:nt,z:9},ex,vp,col,0.12,1);
+  line3({x:-5,y:0,z:9},{x:-5,y:nt,z:9},ex,vp,col,0.6,2);
+  line3({x:5,y:0,z:9},{x:5,y:nt,z:9},ex,vp,col,0.6,2);
+}
+
+function drawBall(p, ex, vp, col) {
+  const pp = proj(p, ex, vp);
+  // cue level 3: constant screen size (no size-change depth cue)
+  const r = cue === 3 ? Math.max(4, BALL_R * 2 * vp.F / DS) : Math.max(2, BALL_R * 2 * pp.k);
+  if (cue === 1 && p.y > 0.02) {
+    const sh = proj({ x: p.x, y: 0, z: p.z }, ex, vp);
+    ctx.fillStyle = col(0.35);
+    ctx.beginPath(); ctx.ellipse(sh.x, sh.y, r, r * 0.3, 0, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.fillStyle = col(1);
+  ctx.beginPath(); ctx.arc(pp.x, pp.y, r, 0, Math.PI * 2); ctx.fill();
+}
+
+function drawMarker(p, ex, vp, col, ring) {
+  const pp = proj(p, ex, vp);
+  const r = ring * pp.k;
+  ctx.strokeStyle = col(0.9); ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.ellipse(pp.x, pp.y, r, r * (p.y < 0.05 ? 0.3 : 1), 0, 0, Math.PI * 2); ctx.stroke();
+}
+
+// Color per eye. Weak eye = RIGHT (blue lens) → brighter.
+const RED_I = 0.6, BLUE_I = 1.0;
+function colRed(a)  { return `rgba(${Math.round(255 * RED_I)},0,0,${a})`; }
+function colBlue(a) { return `rgba(0,0,${Math.round(255 * BLUE_I)},${a})`; }
+function colWhite(a){ return `rgba(235,235,245,${a})`; }
+function colBall(a) { return `rgba(250,200,60,${a})`; }
+
+function renderEye(ex, vp, col, ballCol) {
+  drawCourt(ex, vp, col);
+  if (state.ballVisible) drawBall(state.ball, ex, vp, ballCol);
+  if (task === 'timing' && state.contact) drawMarker(state.contact, ex, vp, col, 0.35);
+  if (state.reveal) drawMarker({ x: state.end.x, y: 0, z: state.end.z }, ex, vp, col, 0.5);
+}
+
+function render() {
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+  if (disp === 'anaglyph') {
+    const vp = makeVP(0, W, H);
+    ctx.globalCompositeOperation = 'lighter';
+    renderEye(-EYE * DISP_GAIN, vp, colRed, colRed);
+    renderEye(+EYE * DISP_GAIN, vp, colBlue, colBlue);
+    ctx.globalCompositeOperation = 'source-over';
+  } else if (disp === 'sbs') {
+    const half = W / 2;
+    // Left eye image on the LEFT half, right on the RIGHT half (VR Box lenses)
+    ctx.save(); ctx.beginPath(); ctx.rect(0, 0, half, H); ctx.clip();
+    renderEye(-EYE * DISP_GAIN, makeVP(0, half, H), colWhite, colBall);
+    ctx.restore();
+    ctx.save(); ctx.beginPath(); ctx.rect(half, 0, half, H); ctx.clip();
+    renderEye(+EYE * DISP_GAIN, makeVP(half, half, H), colWhite, colBall);
+    ctx.restore();
+    ctx.fillStyle = '#222'; ctx.fillRect(half - 1, 0, 2, H);
+  } else {
+    renderEye(0, makeVP(0, W, H), colWhite, colBall);
+  }
+}
+
+// ============================================================
+// TRAJECTORY
+// Arc height and landing depth are chosen INDEPENDENTLY,
+// so "high arc = short serve" can't be learned as a shortcut.
+// ============================================================
+// Arc height and landing depth are stratified independently; topspin
+// (effective gravity up to ~2.2g) makes low short serves physically possible.
+const APEX_BINS=[[3.0,4.6],[4.6,6.0],[6.0,8.0]];
+function solveServe(start,end,hn,g){
+  const z1=start.z,y1=start.y,z2=9,y2=hn,z3=end.z,y3=end.y;
+  const d=(z1-z2)*(z1-z3)*(z2-z3);
+  const a=(z3*(y2-y1)+z2*(y1-y3)+z1*(y3-y2))/d;
+  if(a>=-1e-4)return null;
+  const vzAbs=Math.sqrt(g/(-2*a));
+  const T=(z1-z3)/vzAbs;
+  if(T<0.8||T>2.6)return null;
+  const vy=(end.y-start.y+0.5*g*T*T)/T;
+  const ta=vy/g;
+  const apex=ta>0?start.y+vy*ta-0.5*g*ta*ta:start.y;
+  if(apex>8)return null;
+  return {start,end,T,g,hn,apex,v:{x:(end.x-start.x)/T,y:vy,z:-vzAbs}};
+}
+function makeServe(){
+  const row=Math.floor(Math.random()*3),colI=Math.floor(Math.random()*3);
+  const bin=APEX_BINS[Math.floor(Math.random()*3)];
+  let fallback=null;
+  for(let k=0;k<3000;k++){
+    const start={x:Math.random()*6-3,y:2.5+Math.random()*0.8,z:18.5};
+    const end=task==='zone'
+      ?{x:-4.5+colI*3+0.4+Math.random()*2.2,y:0,z:row*3+0.4+Math.random()*2.2,row,col:colI}
+      :{x:Math.random()*2-1,y:0.8,z:-1.0};
+    const g=9.8+Math.random()*12.2;          // 9.8 = float, up to ~2.2g = heavy topspin
+    const s=solveServe(start,end,2.65+Math.random()*2.6,g);
+    if(!s)continue;
+    if(!fallback)fallback=s;
+    if(s.apex>=bin[0]&&s.apex<bin[1])return s;
+  }
+  return fallback;
+}
+
+function posAt(s, t) {
+  return {
+    x: s.start.x + s.v.x * t,
+    y: Math.max(0, s.start.y + s.v.y * t - 0.5 * s.g * t * t),
+    z: s.start.z + s.v.z * t,
+  };
+}
+
+// ============================================================
+// GAME STATE
+// ============================================================
+const state = {
+  running: false, round: 0, score: 0,
+  serve: null, t: 0, phase: 'idle', // flight | result | gap
+  ball: { x: 0, y: 0, z: 0 }, ballVisible: false,
+  end: null, contact: null, reveal: false,
+  answered: false,
+  depthOk: 0, latOk: 0, zoneAnswers: 0,
+  timingErrs: [],
+};
+let lastTs = 0, rafId = null, gapTimer = null;
+
+function setMsg(t) { document.getElementById('msg').innerHTML = t; }
+
+function startGame() {
+  Object.assign(state, { running: true, round: 0, score: 0, depthOk: 0, latOk: 0, zoneAnswers: 0, timingErrs: [] });
+  document.getElementById('overlay').style.display = 'none';
+  document.getElementById('hud-s').textContent = 0;
+  document.getElementById('hud-d').textContent = '—';
+  document.body.classList.toggle('sbs', disp === 'sbs');
+  resize();
+  setTimeout(nextServe, 600);
+}
+
+function nextServe() {
+  if (state.round >= ROUNDS) { finish(); return; }
+  state.round++;
+  document.getElementById('hud-r').textContent = `${state.round}/${ROUNDS}`;
+  let sv = null; while (!sv) sv = makeServe();
+  state.serve = sv;
+  state.end = state.serve.end;
+  state.contact = task === 'timing' ? { ...state.serve.end } : null;
+  state.t = 0; state.phase = 'flight'; state.answered = false; state.reveal = false;
+  state.ballVisible = true;
+  state.ball = posAt(state.serve, 0);
+  document.querySelectorAll('.pad-btn').forEach(b => b.classList.remove('ok', 'bad'));
+  document.getElementById('pad').classList.toggle('show', task === 'zone' && disp !== 'sbs');
+  setMsg(task === 'zone' ? 'Подача!' : 'Жми, когда мяч в кольце');
+}
+
+function tick(ts) {
+  const dt = Math.min(0.05, (ts - lastTs) / 1000); lastTs = ts;
+  if (state.running && state.phase === 'flight') {
+    state.t += dt * speed;
+    const s = state.serve;
+    const tEnd = task === 'zone' ? s.T : s.T + 0.35;
+    state.ball = posAt(s, Math.min(state.t, tEnd));
+    state.ballVisible = state.t <= s.T * occl || state.t >= s.T; // occlusion window (reappears on landing for zone)
+    if (task === 'timing') state.ballVisible = state.t <= s.T * occl || state.answered;
+    if (state.t >= tEnd) {
+      if (task === 'zone') onLanded();
+      else if (!state.answered) timingAnswer(null); // missed
+    }
+  }
+  render();
+  rafId = requestAnimationFrame(tick);
+}
+
+// ---------------- ZONE TASK ----------------
+function zoneAnswer(row, colI) {
+  if (!state.running || task !== 'zone' || state.answered || state.phase !== 'flight') return;
+  state.answered = true;
+  const s = state.serve;
+  const early = Math.max(0, 1 - state.t / s.T);
+  const dOk = row === s.end.row, lOk = colI === s.end.col;
+  state.zoneAnswers++;
+  if (dOk) state.depthOk++;
+  if (lOk) state.latOk++;
+  let pts = 0;
+  if (dOk && lOk) pts = 10 + Math.round(10 * early);
+  else if (dOk) pts = 4;
+  else if (lOk) pts = 1;
+  state.score += pts;
+  document.getElementById('hud-s').textContent = state.score;
+  document.getElementById('hud-d').textContent = Math.round(state.depthOk / state.zoneAnswers * 100) + '%';
+  const btn = document.querySelector(`.pad-btn[data-z="${row}-${colI}"]`);
+  if (btn) btn.classList.add(dOk && lOk ? 'ok' : 'bad');
+  state._pendingFeedback = { dOk, lOk, pts };
+  // ball keeps flying so you see where it really lands
+}
+
+function onLanded() {
+  state.phase = 'result'; state.reveal = true; state.ballVisible = true;
+  const s = state.serve;
+  const ok = document.querySelector(`.pad-btn[data-z="${s.end.row}-${s.end.col}"]`);
+  if (ok) ok.classList.add('ok');
+  const rows = ['задняя', 'середина', 'у сетки'];
+  if (!state.answered) {
+    state.zoneAnswers++;
+    setMsg(`Не успел · было: <b>${rows[s.end.row]}</b>`);
+    document.getElementById('hud-d').textContent = Math.round(state.depthOk / state.zoneAnswers * 100) + '%';
+  } else {
+    const f = state._pendingFeedback;
+    const d = f.dOk ? '✓ глубина' : `✗ глубина (было: ${rows[s.end.row]})`;
+    const l = f.lOk ? '✓ сторона' : '✗ сторона';
+    setMsg(`${d} · ${l} · +${f.pts}`);
+  }
+  gapTimer = setTimeout(nextServe, 1800);
+}
+
+// ---------------- TIMING TASK ----------------
+function timingAnswer(isPress) {
+  if (!state.running || task !== 'timing' || state.answered || state.phase !== 'flight') return;
+  state.answered = true;
+  const s = state.serve;
+  let msg;
+  if (isPress === null) {
+    msg = 'Пропустил';
+  } else {
+    const errMs = Math.round((state.t - s.T) / speed * 1000); // real-time ms, + = late
+    state.timingErrs.push(errMs);
+    const a = Math.abs(errMs);
+    const pts = a < 60 ? 15 : a < 120 ? 10 : a < 200 ? 5 : 0;
+    state.score += pts;
+    document.getElementById('hud-s').textContent = state.score;
+    msg = `${errMs > 0 ? 'поздно' : 'рано'} на ${a} мс · +${pts}`;
+    const mean = state.timingErrs.reduce((x, y) => x + Math.abs(y), 0) / state.timingErrs.length;
+    document.getElementById('hud-d').textContent = Math.round(mean) + 'мс';
+  }
+  setMsg(msg);
+  state.phase = 'result'; state.ballVisible = true;
+  gapTimer = setTimeout(nextServe, 1600);
+}
+
+// ---------------- FINISH ----------------
+function finish() {
+  state.running = false; state.phase = 'idle'; state.ballVisible = false; state.reveal = false; state.contact = null;
+  document.body.classList.remove('sbs');
+  document.getElementById('pad').classList.remove('show');
+  setMsg('');
+  resize();
+  const st = document.getElementById('ov-stats');
+  if (task === 'zone') {
+    const n = state.zoneAnswers || 1;
+    st.innerHTML = `
+      <div class="ov-s"><div class="ov-v">${Math.round(state.depthOk / n * 100)}%</div><div class="ov-l">Глубина</div></div>
+      <div class="ov-s"><div class="ov-v">${Math.round(state.latOk / n * 100)}%</div><div class="ov-l">Лево/право</div></div>
+      <div class="ov-s"><div class="ov-v">${state.score}</div><div class="ov-l">Очки</div></div>`;
+    document.getElementById('ov-sub').innerHTML =
+      `Сравни глубину и лево/право: разрыв между ними — это и есть твой дефицит глубины.<br>Случайный уровень угадывания глубины — 33%.`;
+  } else {
+    const e = state.timingErrs;
+    const n = e.length || 1;
+    const meanAbs = Math.round(e.reduce((a, b) => a + Math.abs(b), 0) / n);
+    const bias = Math.round(e.reduce((a, b) => a + b, 0) / n);
+    st.innerHTML = `
+      <div class="ov-s"><div class="ov-v">${meanAbs}мс</div><div class="ov-l">Ср. ошибка</div></div>
+      <div class="ov-s"><div class="ov-v">${bias > 0 ? '+' : ''}${bias}мс</div><div class="ov-l">Смещение</div></div>
+      <div class="ov-s"><div class="ov-v">${state.score}</div><div class="ov-l">Очки</div></div>`;
+    document.getElementById('ov-sub').innerHTML =
+      `Смещение «+» — систематически поздно: мозг считает мяч дальше, чем он есть.<br>«−» — рано: видишь его ближе. Хорошо — когда смещение около нуля.`;
+  }
+  st.style.display = 'flex';
+  document.getElementById('ov-title').textContent = '✓ Готово';
+  document.getElementById('start-btn').textContent = 'ЕЩЁ РАЗ';
+  document.getElementById('overlay').style.display = 'flex';
+  saveStats();
+}
+
+function quit() {
+  clearTimeout(gapTimer);
+  state.round = ROUNDS; finish();
+}
+
+// ============================================================
+// INPUT
+// ============================================================
+const KEYMAP = {
+  '7': [2,0], '8': [2,1], '9': [2,2], '4': [1,0], '5': [1,1], '6': [1,2], '1': [0,0], '2': [0,1], '3': [0,2],
+  'q': [2,0], 'w': [2,1], 'e': [2,2], 'a': [1,0], 's': [1,1], 'd': [1,2], 'z': [0,0], 'x': [0,1], 'c': [0,2],
+};
+document.addEventListener('keydown', e => {
+  if (!state.running) return;
+  if (task === 'timing' && e.code === 'Space') { e.preventDefault(); timingAnswer(true); return; }
+  const k = KEYMAP[e.key.toLowerCase()];
+  if (k && task === 'zone') zoneAnswer(k[0], k[1]);
+  if (e.key === 'Escape') quit();
+});
+document.getElementById('pad').addEventListener('click', e => {
+  const b = e.target.closest('.pad-btn'); if (!b) return;
+  const [r, c] = b.dataset.z.split('-').map(Number);
+  zoneAnswer(r, c);
+});
+// Tap anywhere = press (timing task; Cardboard button taps the screen)
+cv.addEventListener('pointerdown', e => {
+  if (task === 'timing') { e.preventDefault(); timingAnswer(true); }
+});
+document.getElementById('exit-sbs').addEventListener('pointerdown', e => { e.stopPropagation(); quit(); });
+
+// Settings
+function bindGroup(id, fn) {
+  document.getElementById(id).addEventListener('click', e => {
+    const b = e.target.closest('.btn'); if (!b) return;
+    document.querySelectorAll(`#${id} .btn`).forEach(x => x.classList.remove('active'));
+    b.classList.add('active'); fn(b.dataset.v);
+  });
+}
+bindGroup('task-btns', v => { task = v; });
+bindGroup('disp-btns', v => { disp = v; render(); });
+bindGroup('cue-btns',  v => { cue = parseInt(v); });
+bindGroup('spd-btns',  v => { speed = parseFloat(v); });
+bindGroup('occ-btns',  v => { occl = parseFloat(v); });
+document.getElementById('start-btn').addEventListener('click', () => {
+  if (disp === 'sbs' && task === 'zone') {
+    // zone answers need the pad — not reachable inside a VR Box
+    task = 'timing';
+    document.querySelectorAll('#task-btns .btn').forEach(x => x.classList.toggle('active', x.dataset.v === 'timing'));
+  }
+  startGame();
+});
+
+function saveStats() {
+  try {
+    const s = JSON.parse(localStorage.getItem('eyegym_stats') || '{}');
+    s.sessions = (s.sessions || 0) + 1; s.minutes = (s.minutes || 0) + 1;
+    const today = new Date().toDateString();
+    if (s.today_date !== today) { s.today_date = today; s.today_exercises = []; s.streak = (s.streak || 0) + 1; }
+    if (!s.today_exercises.includes('Подача')) s.today_exercises.push('Подача');
+    localStorage.setItem('eyegym_stats', JSON.stringify(s));
+  } catch (e) {}
+}
+
+// ============================================================
+// INIT
+// ============================================================
+resize();
+lastTs = performance.now();
+rafId = requestAnimationFrame(tick);
+</script>
+</body>
+</html>

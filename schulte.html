@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EyeGym — Таблица Шульте</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --border: #1e1e2e;
+    --text: #e8e8f0;
+    --muted: #555570;
+    --accent: #00e5ff;
+    --accent-hit: #10b981;
+    --accent-err: #ef4444;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    user-select: none;
+  }
+
+  /* ===== CANVAS — STRIPE INTERFERENCE ===== */
+  #stripe-canvas {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  /* ===== HEADER ===== */
+  header {
+    position: relative; z-index: 10;
+    padding: 16px 32px;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(10,10,15,0.85);
+    backdrop-filter: blur(12px);
+    flex-shrink: 0;
+  }
+
+  .back-btn {
+    display: flex; align-items: center; gap: 8px;
+    color: var(--muted);
+    text-decoration: none;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    transition: color 0.2s;
+    flex-shrink: 0;
+  }
+  .back-btn:hover { color: var(--accent); }
+  .back-btn svg { width: 16px; height: 16px; }
+
+  .header-title {
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+    flex: 1;
+  }
+
+  .hud {
+    display: flex;
+    gap: 24px;
+    align-items: center;
+  }
+
+  .hud-item {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+  }
+
+  .hud-val {
+    font-family: 'DM Mono', monospace;
+    font-size: 20px;
+    font-weight: 500;
+    color: var(--accent);
+    line-height: 1;
+  }
+
+  .hud-val.target { color: #f59e0b; font-size: 24px; }
+  .hud-val.score  { color: var(--accent-hit); }
+
+  .hud-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+  }
+
+  /* ===== SETTINGS BAR ===== */
+  .settings-bar {
+    position: relative; z-index: 10;
+    padding: 10px 32px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(10,10,15,0.7);
+    backdrop-filter: blur(8px);
+    flex-shrink: 0;
+    flex-wrap: wrap;
+  }
+
+  .settings-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-right: 4px;
+  }
+
+  .btn-group {
+    display: flex;
+    gap: 4px;
+  }
+
+  .btn {
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    padding: 6px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+
+  .btn:hover { border-color: var(--accent); color: var(--text); }
+  .btn.active { border-color: var(--accent); background: rgba(0,229,255,0.1); color: var(--accent); }
+
+  .sep { width: 1px; height: 24px; background: var(--border); margin: 0 8px; }
+
+  /* ===== MAIN AREA ===== */
+  .main {
+    flex: 1;
+    position: relative;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  /* ===== GRID ===== */
+  #grid-wrap {
+    display: grid;
+    gap: 6px;
+    position: relative;
+    z-index: 5;
+  }
+
+  .cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    border: none;
+    background: rgba(255,255,255,0.12);
+    backdrop-filter: blur(1px);
+    font-family: 'DM Mono', monospace;
+    font-weight: 600;
+    color: #fff;
+    cursor: pointer;
+    transition: transform 0.12s, background 0.15s, box-shadow 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .cell:hover {
+    background: rgba(255,255,255,0.22);
+    transform: scale(1.04);
+  }
+
+  .cell:active { transform: scale(0.96); }
+
+  .cell.hit {
+    background: rgba(16,185,129,0.25);
+    box-shadow: 0 0 24px -4px var(--accent-hit);
+    animation: hit-flash 0.35s ease-out;
+    color: #064e3b;
+  }
+
+  .cell.err {
+    background: rgba(239,68,68,0.2);
+    box-shadow: 0 0 24px -4px var(--accent-err);
+    animation: err-shake 0.35s ease-out;
+    color: #7f1d1d;
+  }
+
+  .cell.done {
+    background: rgba(255,255,255,0.22);
+    color: transparent;
+    cursor: default;
+    pointer-events: none;
+  }
+
+  @keyframes hit-flash {
+    0% { transform: scale(1.12); }
+    100% { transform: scale(1); }
+  }
+
+  @keyframes err-shake {
+    0% { transform: translateX(0); }
+    20% { transform: translateX(-6px); }
+    40% { transform: translateX(6px); }
+    60% { transform: translateX(-4px); }
+    80% { transform: translateX(4px); }
+    100% { transform: translateX(0); }
+  }
+
+  /* ===== OVERLAY (start / finish) ===== */
+  #overlay {
+    position: absolute; inset: 0;
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(10,10,15,0.85);
+    backdrop-filter: blur(16px);
+    gap: 24px;
+  }
+
+  .overlay-title {
+    font-size: 48px;
+    font-weight: 800;
+    letter-spacing: -2px;
+  }
+
+  .overlay-sub {
+    font-family: 'DM Mono', monospace;
+    font-size: 14px;
+    color: var(--muted);
+    text-align: center;
+    line-height: 1.8;
+    max-width: 360px;
+  }
+
+  .overlay-stats {
+    display: flex;
+    gap: 32px;
+    padding: 20px 32px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+  }
+
+  .ov-stat { text-align: center; }
+  .ov-val {
+    font-family: 'DM Mono', monospace;
+    font-size: 32px;
+    font-weight: 500;
+    color: var(--accent);
+  }
+  .ov-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin-top: 4px;
+  }
+
+  .start-btn {
+    font-family: 'Syne', sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    padding: 16px 48px;
+    border-radius: 12px;
+    border: 1px solid var(--accent);
+    background: rgba(0,229,255,0.1);
+    color: var(--accent);
+    cursor: pointer;
+    letter-spacing: 1px;
+    transition: all 0.2s;
+  }
+
+  .start-btn:hover {
+    background: rgba(0,229,255,0.2);
+    box-shadow: 0 0 32px -8px var(--accent);
+    transform: scale(1.02);
+  }
+
+  /* ===== FLASH FEEDBACK ===== */
+  #screen-flash {
+    position: fixed; inset: 0; z-index: 30;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.05s;
+  }
+  #screen-flash.green { background: rgba(16,185,129,0.08); opacity: 1; animation: flash-out 0.3s ease-out forwards; }
+  #screen-flash.red   { background: rgba(239,68,68,0.08);  opacity: 1; animation: flash-out 0.3s ease-out forwards; }
+  @keyframes flash-out { to { opacity: 0; } }
+</style>
+</head>
+<body>
+
+<canvas id="stripe-canvas"></canvas>
+<div id="screen-flash"></div>
+
+<!-- HEADER -->
+<header>
+  <a href="all.html" class="back-btn">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M10 3 L5 8 L10 13"/>
+    </svg>
+    Назад
+  </a>
+  <div class="header-title">Таблица Шульте</div>
+  <div class="hud">
+    <div class="hud-item">
+      <div class="hud-val target" id="hud-target">—</div>
+      <div class="hud-label">Цель</div>
+    </div>
+    <div class="hud-item">
+      <div class="hud-val" id="hud-time">00:00</div>
+      <div class="hud-label">Время</div>
+    </div>
+    <div class="hud-item">
+      <div class="hud-val score" id="hud-score">0</div>
+      <div class="hud-label">Счёт</div>
+    </div>
+  </div>
+</header>
+
+<!-- SETTINGS -->
+<div class="settings-bar">
+  <span class="settings-label">Сетка</span>
+  <div class="btn-group" id="size-btns">
+    <button class="btn" data-size="3">3×3</button>
+    <button class="btn" data-size="4">4×4</button>
+    <button class="btn active" data-size="5">5×5</button>
+    <button class="btn" data-size="6">6×6</button>
+    <button class="btn" data-size="7">7×7</button>
+    <button class="btn" data-size="8">8×8</button>
+  </div>
+  <div class="sep"></div>
+  <span class="settings-label">Помехи</span>
+  <div class="btn-group" id="noise-btns">
+    <button class="btn" data-noise="0">Нет</button>
+    <button class="btn" data-noise="1">Слабые</button>
+    <button class="btn active" data-noise="2">Средние</button>
+    <button class="btn" data-noise="3">Сильные</button>
+  </div>
+  <div class="sep"></div>
+  <span class="settings-label">Скорость</span>
+  <div class="btn-group" id="speed-btns">
+    <button class="btn" data-speed="0.4">Медленно</button>
+    <button class="btn active" data-speed="1">Норма</button>
+    <button class="btn" data-speed="2">Быстро</button>
+    <button class="btn" data-speed="3.5">Хаос</button>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+  <div id="grid-wrap"></div>
+
+  <!-- OVERLAY -->
+  <div id="overlay">
+    <div class="overlay-title">Шульте</div>
+    <div class="overlay-sub">
+      Найди числа по порядку: 1 → 2 → 3 → …<br>
+      Смотри в центр таблицы, ищи периферийным зрением.<br>
+      Полосы мешают — это нормально.
+    </div>
+    <div id="result-stats" style="display:none" class="overlay-stats">
+      <div class="ov-stat">
+        <div class="ov-val" id="res-time">—</div>
+        <div class="ov-label">Время</div>
+      </div>
+      <div class="ov-stat">
+        <div class="ov-val" id="res-score">—</div>
+        <div class="ov-label">Счёт</div>
+      </div>
+      <div class="ov-stat">
+        <div class="ov-val" id="res-errors">—</div>
+        <div class="ov-label">Ошибки</div>
+      </div>
+    </div>
+    <button class="start-btn" id="start-btn">НАЧАТЬ</button>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// CONFIG
+// ============================================================
+let gridSize = 5;
+let noiseLevel = 2;   // 0-3
+let speedMult = 1.0;
+
+// ============================================================
+// STRIPE CANVAS
+// ============================================================
+const canvas = document.getElementById('stripe-canvas');
+const ctx = canvas.getContext('2d');
+
+let animId;
+let isRunning = false;
+
+function resizeCanvas() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+// Diagonal stripe config per noise level
+const STRIPE_CONFIGS = [
+  null,
+  { width: 28, gap: 56, baseOpacity: 0.55 },
+  { width: 38, gap: 38, baseOpacity: 0.85 },
+  { width: 44, gap: 28, baseOpacity: 1.00 },
+];
+
+let stripeOffset = 0;
+let flickerT = 0; // time for flicker sine
+
+function initStripes() {
+  stripeOffset = 0;
+  flickerT = 0;
+}
+
+function drawStripes() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (noiseLevel === 0 || !isRunning) return;
+
+  const cfg = STRIPE_CONFIGS[noiseLevel];
+  const period = cfg.width + cfg.gap;
+
+  const speeds = [0, 0.5, 1.1, 2.2];
+  stripeOffset += speeds[noiseLevel] * speedMult;
+  if (stripeOffset > period) stripeOffset -= period;
+
+  // Flicker: fast irregular oscillation
+  flickerT += 0.07 * speedMult;
+  const flicker = 0.75
+    + 0.15 * Math.sin(flickerT * 3.7)
+    + 0.10 * Math.sin(flickerT * 11.3 + 1.2);
+  const opacity = cfg.baseOpacity * flicker;
+
+  const W = canvas.width;
+  const H = canvas.height;
+  const diag = Math.sqrt(W * W + H * H);
+
+  ctx.save();
+  ctx.translate(W / 2, H / 2);
+  ctx.rotate(Math.PI / 4);
+
+  const start = -diag / 2 - period;
+  const end   =  diag / 2 + period;
+
+  // Glow pass 1 — wide soft halo (cyan tint)
+  const glowWidth = cfg.width * 2.5;
+  ctx.shadowBlur = 0;
+  for (let x = start + (stripeOffset % period); x < end; x += period) {
+    const grad = ctx.createLinearGradient(x, 0, x + cfg.width, 0);
+    grad.addColorStop(0,   `rgba(180,255,255,0)`);
+    grad.addColorStop(0.2, `rgba(180,255,255,${opacity * 0.25})`);
+    grad.addColorStop(0.5, `rgba(220,255,255,${opacity * 0.18})`);
+    grad.addColorStop(0.8, `rgba(180,255,255,${opacity * 0.25})`);
+    grad.addColorStop(1,   `rgba(180,255,255,0)`);
+    ctx.fillStyle = grad;
+    ctx.fillRect(x - glowWidth * 0.5, -diag / 2, cfg.width + glowWidth, diag);
+  }
+
+  // Glow pass 2 — tight bright core (white)
+  ctx.shadowColor = `rgba(200,255,255,${opacity * 0.9})`;
+  ctx.shadowBlur  = 18 * (noiseLevel / 3);
+  for (let x = start + (stripeOffset % period); x < end; x += period) {
+    ctx.fillStyle = `rgba(255,255,255,${opacity})`;
+    ctx.fillRect(x, -diag / 2, cfg.width, diag);
+  }
+
+  ctx.restore();
+}
+
+// ============================================================
+// GAME STATE
+// ============================================================
+let target = 1;
+let totalNums = 0;
+let errors = 0;
+let score = 0;
+let startTime = null;
+let timerInterval = null;
+let cells = [];
+
+function buildGrid() {
+  const wrap = document.getElementById('grid-wrap');
+  wrap.innerHTML = '';
+  totalNums = gridSize * gridSize;
+
+  const nums = Array.from({length: totalNums}, (_, i) => i + 1);
+  // Fisher-Yates shuffle
+  for (let i = nums.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [nums[i], nums[j]] = [nums[j], nums[i]];
+  }
+
+  // cell size responsive
+  const maxW = Math.min(window.innerWidth - 64, 600);
+  const maxH = window.innerHeight - 200;
+  const cellSize = Math.floor(Math.min(maxW, maxH) / gridSize) - 6;
+  const fontSize = Math.max(14, Math.min(32, cellSize * 0.4));
+
+  wrap.style.gridTemplateColumns = `repeat(${gridSize}, ${cellSize}px)`;
+  wrap.style.gap = '6px';
+
+  cells = [];
+  nums.forEach((n, idx) => {
+    const cell = document.createElement('div');
+    cell.className = 'cell';
+    cell.textContent = n;
+    cell.dataset.num = n;
+    cell.style.width = cellSize + 'px';
+    cell.style.height = cellSize + 'px';
+    cell.style.fontSize = fontSize + 'px';
+    cell.addEventListener('click', () => handleCellClick(cell, n));
+    wrap.appendChild(cell);
+    cells.push(cell);
+  });
+}
+
+function handleCellClick(cell, n) {
+  if (!isRunning) return;
+  if (parseInt(cell.dataset.num) !== target) return; // already handled by num check
+
+  if (n === target) {
+    // correct
+    cell.classList.add('hit');
+    setTimeout(() => {
+      cell.classList.remove('hit');
+      cell.classList.add('done');
+    }, 350);
+
+    score += 10;
+    target++;
+    document.getElementById('hud-target').textContent = target <= totalNums ? target : '✓';
+    document.getElementById('hud-score').textContent = score;
+
+    screenFlash('green');
+
+    if (target > totalNums) {
+      finishGame();
+    }
+  } else {
+    // wrong
+    cell.classList.add('err');
+    setTimeout(() => cell.classList.remove('err'), 400);
+    errors++;
+    score = Math.max(0, score - 5);
+    document.getElementById('hud-score').textContent = score;
+    screenFlash('red');
+  }
+}
+
+function screenFlash(color) {
+  const el = document.getElementById('screen-flash');
+  el.className = '';
+  void el.offsetWidth;
+  el.className = color;
+}
+
+function startGame() {
+  target = 1;
+  errors = 0;
+  score = 0;
+  isRunning = true;
+
+  document.getElementById('overlay').style.display = 'none';
+  document.getElementById('result-stats').style.display = 'none';
+  document.getElementById('hud-target').textContent = target;
+  document.getElementById('hud-score').textContent = score;
+
+  buildGrid();
+  initStripes();
+
+  startTime = Date.now();
+  timerInterval = setInterval(updateTimer, 100);
+
+  function loop() {
+    drawStripes();
+    if (isRunning) animId = requestAnimationFrame(loop);
+  }
+  animId = requestAnimationFrame(loop);
+}
+
+function finishGame() {
+  isRunning = false;
+  cancelAnimationFrame(animId);
+  clearInterval(timerInterval);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const elapsed = (Date.now() - startTime) / 1000;
+  const mm = String(Math.floor(elapsed / 60)).padStart(2, '0');
+  const ss = String(Math.floor(elapsed % 60)).padStart(2, '0');
+  const timeStr = `${mm}:${ss}`;
+
+  document.getElementById('res-time').textContent = timeStr;
+  document.getElementById('res-score').textContent = score;
+  document.getElementById('res-errors').textContent = errors;
+  document.getElementById('result-stats').style.display = 'flex';
+
+  const overlay = document.getElementById('overlay');
+  overlay.querySelector('.overlay-title').textContent = '✓ Готово';
+  overlay.querySelector('.overlay-sub').textContent =
+    `Всё ${totalNums} чисел найдено за ${timeStr}`;
+  document.getElementById('start-btn').textContent = 'ЕЩЁ РАЗ';
+  overlay.style.display = 'flex';
+
+  // save stats
+  saveStats(elapsed);
+}
+
+function updateTimer() {
+  const elapsed = (Date.now() - startTime) / 1000;
+  const mm = String(Math.floor(elapsed / 60)).padStart(2, '0');
+  const ss = String(Math.floor(elapsed % 60)).padStart(2, '0');
+  document.getElementById('hud-time').textContent = `${mm}:${ss}`;
+}
+
+// ============================================================
+// SETTINGS BUTTONS
+// ============================================================
+document.getElementById('size-btns').addEventListener('click', e => {
+  const btn = e.target.closest('[data-size]');
+  if (!btn) return;
+  gridSize = parseInt(btn.dataset.size);
+  document.querySelectorAll('#size-btns .btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  if (!isRunning) buildGrid();
+});
+
+document.getElementById('noise-btns').addEventListener('click', e => {
+  const btn = e.target.closest('[data-noise]');
+  if (!btn) return;
+  noiseLevel = parseInt(btn.dataset.noise);
+  document.querySelectorAll('#noise-btns .btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  initStripes();
+});
+
+document.getElementById('speed-btns').addEventListener('click', e => {
+  const btn = e.target.closest('[data-speed]');
+  if (!btn) return;
+  speedMult = parseFloat(btn.dataset.speed);
+  document.querySelectorAll('#speed-btns .btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  initStripes();
+});
+
+document.getElementById('start-btn').addEventListener('click', startGame);
+
+// ============================================================
+// STATS
+// ============================================================
+function saveStats(elapsedSec) {
+  const s = JSON.parse(localStorage.getItem('eyegym_stats') || '{}');
+  s.sessions = (s.sessions || 0) + 1;
+  s.minutes = (s.minutes || 0) + Math.round(elapsedSec / 60);
+
+  const today = new Date().toDateString();
+  if (s.today_date !== today) {
+    s.today_date = today;
+    s.today_exercises = [];
+    s.streak = (s.streak || 0) + 1;
+  }
+  if (!s.today_exercises.includes('Шульте')) s.today_exercises.push('Шульте');
+
+  localStorage.setItem('eyegym_stats', JSON.stringify(s));
+}
+
+// init grid preview
+buildGrid();
+</script>
+</body>
+</html>

@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EyeGym — Пятна Габора</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --border: #1e1e2e;
+    --text: #e8e8f0;
+    --muted: #555570;
+    --accent: #ec4899;
+    --accent2: #00e5ff;
+    --hit: #10b981;
+    --err: #ef4444;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    user-select: none;
+  }
+
+  header {
+    position: relative; z-index: 10;
+    padding: 14px 32px;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(10,10,15,0.9);
+    backdrop-filter: blur(12px);
+    flex-shrink: 0;
+  }
+  .back-btn {
+    display: flex; align-items: center; gap: 8px;
+    color: var(--muted); text-decoration: none;
+    font-family: 'DM Mono', monospace; font-size: 12px;
+    transition: color 0.2s; flex-shrink: 0;
+  }
+  .back-btn:hover { color: var(--accent); }
+  .back-btn svg { width: 16px; height: 16px; }
+  .header-title { font-size: 16px; font-weight: 700; letter-spacing: -0.3px; flex: 1; }
+  .hud { display: flex; gap: 24px; align-items: center; }
+  .hud-item { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+  .hud-val {
+    font-family: 'DM Mono', monospace; font-size: 20px;
+    font-weight: 500; color: var(--accent2); line-height: 1;
+  }
+  .hud-val.score { color: var(--hit); }
+  .hud-val.streak { color: var(--accent); font-size: 22px; }
+  .hud-label { font-family: 'DM Mono', monospace; font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: 1.5px; }
+
+  .settings-bar {
+    position: relative; z-index: 10;
+    padding: 8px 32px;
+    display: flex; align-items: center; gap: 10px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(10,10,15,0.7);
+    backdrop-filter: blur(8px);
+    flex-shrink: 0; flex-wrap: wrap;
+  }
+  .settings-label { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 2px; }
+  .btn-group { display: flex; gap: 4px; }
+  .btn {
+    font-family: 'DM Mono', monospace; font-size: 12px;
+    padding: 5px 12px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--surface);
+    color: var(--muted); cursor: pointer; transition: all 0.15s; white-space: nowrap;
+  }
+  .btn:hover { border-color: var(--accent); color: var(--text); }
+  .btn.active { border-color: var(--accent); background: rgba(236,72,153,0.12); color: var(--accent); }
+  .sep { width: 1px; height: 20px; background: var(--border); margin: 0 6px; }
+
+  /* MAIN */
+  .main {
+    flex: 1; position: relative;
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+  }
+
+  /* WebGL canvas — full background noise field */
+  #bg-canvas {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+  }
+
+  /* Gabor stimulus canvas — centered */
+  #gabor-canvas {
+    position: relative; z-index: 5;
+    border-radius: 50%;
+    box-shadow: 0 0 60px -10px rgba(236,72,153,0.3);
+    cursor: pointer;
+    transition: box-shadow 0.2s;
+  }
+  #gabor-canvas:hover { box-shadow: 0 0 80px -10px rgba(236,72,153,0.5); }
+
+  /* Answer buttons */
+  #answer-btns {
+    position: absolute; z-index: 10;
+    bottom: 40px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 16px;
+  }
+
+  .ans-btn {
+    width: 80px; height: 80px;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    background: rgba(17,17,24,0.7);
+    backdrop-filter: blur(8px);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s;
+    flex-direction: column; gap: 4px;
+  }
+  .ans-btn:hover { border-color: var(--accent); transform: scale(1.08); }
+  .ans-btn:active { transform: scale(0.94); }
+  .ans-btn svg { width: 28px; height: 28px; }
+  .ans-btn span { font-family: 'DM Mono', monospace; font-size: 9px; color: var(--muted); letter-spacing: 1px; }
+
+  .ans-btn.correct { border-color: var(--hit); background: rgba(16,185,129,0.15); box-shadow: 0 0 24px -4px var(--hit); }
+  .ans-btn.wrong   { border-color: var(--err); background: rgba(239,68,68,0.12);  box-shadow: 0 0 24px -4px var(--err); animation: shake 0.3s ease-out; }
+
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    20% { transform: translateX(-6px); }
+    40% { transform: translateX(6px); }
+    60% { transform: translateX(-4px); }
+    80% { transform: translateX(4px); }
+  }
+
+  /* Feedback flash */
+  #screen-flash { position: fixed; inset: 0; z-index: 30; pointer-events: none; opacity: 0; }
+  #screen-flash.green { background: rgba(16,185,129,0.07); opacity:1; animation: fout 0.35s ease-out forwards; }
+  #screen-flash.red   { background: rgba(239,68,68,0.07);  opacity:1; animation: fout 0.35s ease-out forwards; }
+  @keyframes fout { to { opacity: 0; } }
+
+  /* Difficulty indicator */
+  #diff-bar {
+    position: absolute; z-index: 10;
+    top: 16px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 6px; align-items: center;
+  }
+  .diff-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--border); transition: background 0.3s;
+  }
+  .diff-dot.active { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+
+  /* Overlay */
+  #overlay {
+    position: absolute; inset: 0; z-index: 20;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: rgba(10,10,15,0.88); backdrop-filter: blur(20px); gap: 20px;
+  }
+  .overlay-title { font-size: 44px; font-weight: 800; letter-spacing: -2px; }
+  .overlay-sub { font-family: 'DM Mono', monospace; font-size: 13px; color: var(--muted); text-align: center; line-height: 1.9; max-width: 380px; }
+
+  .overlay-stats { display: flex; gap: 28px; padding: 18px 28px; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; }
+  .ov-stat { text-align: center; }
+  .ov-val { font-family: 'DM Mono', monospace; font-size: 28px; font-weight: 500; color: var(--accent); }
+  .ov-label { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1.5px; margin-top: 4px; }
+
+  .start-btn {
+    font-family: 'Syne', sans-serif; font-size: 16px; font-weight: 700;
+    padding: 14px 44px; border-radius: 12px;
+    border: 1px solid var(--accent); background: rgba(236,72,153,0.1);
+    color: var(--accent); cursor: pointer; letter-spacing: 1px; transition: all 0.2s;
+  }
+  .start-btn:hover { background: rgba(236,72,153,0.2); box-shadow: 0 0 28px -8px var(--accent); transform: scale(1.02); }
+
+  /* Eye mode toggle */
+  .eye-toggle {
+    display: flex; gap: 4px;
+    padding: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  }
+  .eye-btn {
+    font-family: 'DM Mono', monospace; font-size: 11px; padding: 4px 12px;
+    border-radius: 7px; border: none; background: transparent;
+    color: var(--muted); cursor: pointer; transition: all 0.15s;
+  }
+  .eye-btn.active { background: rgba(236,72,153,0.15); color: var(--accent); }
+</style>
+</head>
+<body>
+<div id="screen-flash"></div>
+
+<header>
+  <a href="all.html" class="back-btn">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 3 L5 8 L10 13"/></svg>
+    Назад
+  </a>
+  <div class="header-title">Пятна Габора</div>
+  <div class="hud">
+    <div class="hud-item">
+      <div class="hud-val" id="hud-round">0/20</div>
+      <div class="hud-label">Раунд</div>
+    </div>
+    <div class="hud-item">
+      <div class="hud-val streak" id="hud-streak">×1</div>
+      <div class="hud-label">Серия</div>
+    </div>
+    <div class="hud-item">
+      <div class="hud-val score" id="hud-score">0</div>
+      <div class="hud-label">Счёт</div>
+    </div>
+  </div>
+</header>
+
+<div class="settings-bar">
+  <span class="settings-label">Сложность</span>
+  <div class="btn-group" id="diff-btns">
+    <button class="btn" data-diff="easy">Легко</button>
+    <button class="btn active" data-diff="medium">Средне</button>
+    <button class="btn" data-diff="hard">Сложно</button>
+    <button class="btn" data-diff="adaptive">Адаптив</button>
+  </div>
+  <div class="sep"></div>
+  <span class="settings-label">Глаз</span>
+  <div class="eye-toggle">
+    <button class="eye-btn active" data-eye="both">Оба</button>
+    <button class="eye-btn" data-eye="left">Лев</button>
+    <button class="eye-btn" data-eye="right">Прав</button>
+  </div>
+  <div class="sep"></div>
+  <span class="settings-label">Раундов</span>
+  <div class="btn-group" id="rounds-btns">
+    <button class="btn" data-rounds="10">10</button>
+    <button class="btn active" data-rounds="20">20</button>
+    <button class="btn" data-rounds="40">40</button>
+  </div>
+</div>
+
+<div class="main">
+  <!-- Full-screen noise background -->
+  <canvas id="bg-canvas"></canvas>
+
+  <!-- Difficulty dots -->
+  <div id="diff-bar">
+    <div class="diff-dot" id="dd0"></div>
+    <div class="diff-dot" id="dd1"></div>
+    <div class="diff-dot" id="dd2"></div>
+    <div class="diff-dot" id="dd3"></div>
+    <div class="diff-dot" id="dd4"></div>
+  </div>
+
+  <!-- Gabor stimulus -->
+  <canvas id="gabor-canvas" width="320" height="320"></canvas>
+
+  <!-- Answer buttons -->
+  <div id="answer-btns">
+    <!-- ↖ diagonal left -->
+    <button class="ans-btn" data-angle="135" title="↖ −45°">
+      <svg viewBox="0 0 28 28" fill="none" stroke="#ec4899" stroke-width="2.5">
+        <line x1="22" y1="6" x2="6" y2="22"/>
+        <line x1="6" y1="22" x2="12" y2="22"/>
+        <line x1="6" y1="22" x2="6" y2="16"/>
+      </svg>
+      <span>−45°</span>
+    </button>
+    <!-- | vertical -->
+    <button class="ans-btn" data-angle="90" title="| Вертикаль">
+      <svg viewBox="0 0 28 28" fill="none" stroke="#ec4899" stroke-width="2.5">
+        <line x1="14" y1="4" x2="14" y2="24"/>
+      </svg>
+      <span>90°</span>
+    </button>
+    <!-- — horizontal -->
+    <button class="ans-btn" data-angle="0" title="— Горизонталь">
+      <svg viewBox="0 0 28 28" fill="none" stroke="#ec4899" stroke-width="2.5">
+        <line x1="4" y1="14" x2="24" y2="14"/>
+      </svg>
+      <span>0°</span>
+    </button>
+    <!-- ↗ diagonal right -->
+    <button class="ans-btn" data-angle="45" title="↗ +45°">
+      <svg viewBox="0 0 28 28" fill="none" stroke="#ec4899" stroke-width="2.5">
+        <line x1="6" y1="22" x2="22" y2="6"/>
+        <line x1="22" y1="6" x2="16" y2="6"/>
+        <line x1="22" y1="6" x2="22" y2="12"/>
+      </svg>
+      <span>+45°</span>
+    </button>
+  </div>
+
+  <!-- Overlay -->
+  <div id="overlay">
+    <div class="overlay-title">Габор</div>
+    <div class="overlay-sub" id="overlay-sub">
+      Определи ориентацию полос внутри пятна.<br>
+      4 варианта: горизонталь, вертикаль, ±45°.<br>
+      <br>
+      Смотри <strong style="color:var(--accent)">прямо в центр</strong> пятна.<br>
+      Не сканируй — пусть зрение само «схватит».
+    </div>
+    <div id="result-stats" style="display:none" class="overlay-stats">
+      <div class="ov-stat"><div class="ov-val" id="res-correct">—</div><div class="ov-label">Верно</div></div>
+      <div class="ov-stat"><div class="ov-val" id="res-acc">—</div><div class="ov-label">Точность</div></div>
+      <div class="ov-stat"><div class="ov-val" id="res-score">—</div><div class="ov-label">Счёт</div></div>
+    </div>
+    <button class="start-btn" id="start-btn">НАЧАТЬ</button>
+  </div>
+</div>
+
+<!-- ============================================================
+     VERTEX SHADER (shared)
+============================================================ -->
+<script id="vs" type="x-shader/x-vertex">
+attribute vec2 a_pos;
+void main() { gl_Position = vec4(a_pos, 0.0, 1.0); }
+</script>
+
+<!-- ============================================================
+     FRAGMENT SHADER — BACKGROUND NOISE
+============================================================ -->
+<script id="fs-bg" type="x-shader/x-fragment">
+precision mediump float;
+uniform vec2  u_res;
+uniform float u_time;
+
+float hash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+float noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u = f*f*(3.0-2.0*f);
+  return mix(mix(hash(i), hash(i+vec2(1,0)), u.x),
+             mix(hash(i+vec2(0,1)), hash(i+vec2(1,1)), u.x), u.y);
+}
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / u_res;
+  // Drifting noise field
+  float n = noise(uv * 8.0 + vec2(u_time * 0.3, u_time * 0.17));
+  n += 0.5 * noise(uv * 16.0 + vec2(u_time * 0.5, -u_time * 0.4));
+  n = n / 1.5;
+  float gray = n * 0.18 + 0.03;
+  gl_FragColor = vec4(gray, gray, gray * 1.1, 1.0);
+}
+</script>
+
+<!-- ============================================================
+     FRAGMENT SHADER — GABOR PATCH
+============================================================ -->
+<script id="fs-gabor" type="x-shader/x-fragment">
+precision highp float;
+uniform vec2  u_res;      // canvas size
+uniform float u_angle;    // grating orientation (radians)
+uniform float u_freq;     // spatial frequency (cycles/px)
+uniform float u_sigma;    // gaussian envelope sigma
+uniform float u_contrast; // 0..1
+uniform float u_phase;    // grating phase
+uniform float u_noise;    // noise amplitude 0..1
+uniform float u_time;
+uniform float u_seed;
+
+float hash(vec2 p) {
+  return fract(sin(dot(p + u_seed, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / u_res;
+  vec2 c  = uv - 0.5;
+
+  // Gaussian envelope
+  float r2    = dot(c, c);
+  float sigma = u_sigma;
+  float gauss = exp(-r2 / (2.0 * sigma * sigma));
+
+  // Circular mask
+  float mask = step(r2, 0.25); // r < 0.5
+
+  // Sinusoidal grating
+  float ca = cos(u_angle), sa = sin(u_angle);
+  float xr = c.x * ca + c.y * sa;
+  float grating = cos(2.0 * 3.14159265 * u_freq * xr + u_phase);
+
+  // Background noise
+  float noise = (hash(gl_FragCoord.xy) - 0.5) * 2.0 * u_noise;
+
+  // Combine
+  float val = 0.5 + gauss * mask * u_contrast * grating * 0.5 + noise * 0.5;
+  val = clamp(val, 0.0, 1.0);
+
+  // Tint slightly (pink-ish on dark)
+  vec3 col = vec3(val * 0.92, val * 0.82, val * 0.98);
+  gl_FragColor = vec4(col, mask);
+}
+</script>
+
+<script>
+// ============================================================
+// SETTINGS
+// ============================================================
+const DIFFICULTIES = {
+  easy:     { contrast: 0.90, noise: 0.10, sigma: 0.18, freq: 5,  angles: 4, exposureMs: 99999 },
+  medium:   { contrast: 0.55, noise: 0.35, sigma: 0.16, freq: 7,  angles: 4, exposureMs: 99999 },
+  hard:     { contrast: 0.28, noise: 0.65, sigma: 0.14, freq: 9,  angles: 4, exposureMs: 2000  },
+  adaptive: { contrast: 0.70, noise: 0.25, sigma: 0.17, freq: 6,  angles: 4, exposureMs: 99999 },
+};
+
+let difficulty   = 'medium';
+let totalRounds  = 20;
+let eyeMode      = 'both';
+
+// Adaptive tracking
+let adaptiveLevel = 3; // 0=easiest 6=hardest
+const ADAPTIVE_STEPS = [
+  { contrast: 0.95, noise: 0.05, freq: 4 },
+  { contrast: 0.80, noise: 0.15, freq: 5 },
+  { contrast: 0.60, noise: 0.30, freq: 6 },
+  { contrast: 0.45, noise: 0.45, freq: 7 },
+  { contrast: 0.28, noise: 0.60, freq: 8 },
+  { contrast: 0.18, noise: 0.72, freq: 9 },
+  { contrast: 0.10, noise: 0.85, freq:11 },
+];
+
+// ============================================================
+// WEBGL — BACKGROUND
+// ============================================================
+const bgCanvas = document.getElementById('bg-canvas');
+let bgGL, bgProg, bgUniforms = {};
+
+function initBG() {
+  bgCanvas.width  = bgCanvas.offsetWidth;
+  bgCanvas.height = bgCanvas.offsetHeight;
+  bgGL = bgCanvas.getContext('webgl');
+  if (!bgGL) return;
+
+  const gl = bgGL;
+  const vs = compileShader(gl, gl.VERTEX_SHADER,   document.getElementById('vs').text);
+  const fs = compileShader(gl, gl.FRAGMENT_SHADER, document.getElementById('fs-bg').text);
+  bgProg = linkProgram(gl, vs, fs);
+
+  const buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+  const loc = gl.getAttribLocation(bgProg, 'a_pos');
+  gl.enableVertexAttribArray(loc);
+  gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+
+  gl.useProgram(bgProg);
+  bgUniforms.res  = gl.getUniformLocation(bgProg, 'u_res');
+  bgUniforms.time = gl.getUniformLocation(bgProg, 'u_time');
+}
+
+function renderBG(t) {
+  if (!bgGL) return;
+  const gl = bgGL;
+  gl.viewport(0, 0, bgCanvas.width, bgCanvas.height);
+  gl.uniform2f(bgUniforms.res, bgCanvas.width, bgCanvas.height);
+  gl.uniform1f(bgUniforms.time, t * 0.001);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+}
+
+// ============================================================
+// WEBGL — GABOR
+// ============================================================
+const gaborCanvas = document.getElementById('gabor-canvas');
+let gGL, gProg, gUniforms = {};
+
+function initGabor() {
+  gGL = gaborCanvas.getContext('webgl');
+  if (!gGL) return;
+  const gl = gGL;
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+  const vs = compileShader(gl, gl.VERTEX_SHADER,   document.getElementById('vs').text);
+  const fs = compileShader(gl, gl.FRAGMENT_SHADER, document.getElementById('fs-gabor').text);
+  gProg = linkProgram(gl, vs, fs);
+
+  const buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+  const loc = gl.getAttribLocation(gProg, 'a_pos');
+  gl.enableVertexAttribArray(loc);
+  gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+
+  gl.useProgram(gProg);
+  gUniforms.res      = gl.getUniformLocation(gProg, 'u_res');
+  gUniforms.angle    = gl.getUniformLocation(gProg, 'u_angle');
+  gUniforms.freq     = gl.getUniformLocation(gProg, 'u_freq');
+  gUniforms.sigma    = gl.getUniformLocation(gProg, 'u_sigma');
+  gUniforms.contrast = gl.getUniformLocation(gProg, 'u_contrast');
+  gUniforms.phase    = gl.getUniformLocation(gProg, 'u_phase');
+  gUniforms.noise    = gl.getUniformLocation(gProg, 'u_noise');
+  gUniforms.time     = gl.getUniformLocation(gProg, 'u_time');
+  gUniforms.seed     = gl.getUniformLocation(gProg, 'u_seed');
+}
+
+function renderGabor(params) {
+  if (!gGL) return;
+  const gl = gGL;
+  gl.viewport(0, 0, gaborCanvas.width, gaborCanvas.height);
+  gl.clearColor(0, 0, 0, 0);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.uniform2f(gUniforms.res,      gaborCanvas.width, gaborCanvas.height);
+  gl.uniform1f(gUniforms.angle,    params.angle);
+  gl.uniform1f(gUniforms.freq,     params.freq);
+  gl.uniform1f(gUniforms.sigma,    params.sigma);
+  gl.uniform1f(gUniforms.contrast, params.contrast);
+  gl.uniform1f(gUniforms.phase,    params.phase);
+  gl.uniform1f(gUniforms.noise,    params.noise);
+  gl.uniform1f(gUniforms.time,     params.time);
+  gl.uniform1f(gUniforms.seed,     params.seed);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+}
+
+// ============================================================
+// SHADER HELPERS
+// ============================================================
+function compileShader(gl, type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  return s;
+}
+function linkProgram(gl, vs, fs) {
+  const p = gl.createProgram();
+  gl.attachShader(p, vs); gl.attachShader(p, fs);
+  gl.linkProgram(p);
+  return p;
+}
+
+// ============================================================
+// GAME STATE
+// ============================================================
+const ANGLE_OPTIONS = [0, 45, 90, 135]; // degrees
+
+let round = 0;
+let score = 0;
+let streak = 0;
+let correct = 0;
+let isRunning = false;
+let awaitingAnswer = false;
+let currentAngle = 0;
+let currentParams = null;
+let exposureTimer = null;
+let animId = null;
+let startT = 0;
+
+function getDiffParams() {
+  if (difficulty === 'adaptive') {
+    const s = ADAPTIVE_STEPS[Math.min(adaptiveLevel, ADAPTIVE_STEPS.length - 1)];
+    return { ...DIFFICULTIES.adaptive, ...s };
+  }
+  return DIFFICULTIES[difficulty];
+}
+
+function newRound() {
+  if (round >= totalRounds) { finishGame(); return; }
+  round++;
+  document.getElementById('hud-round').textContent = `${round}/${totalRounds}`;
+
+  const p = getDiffParams();
+  currentAngle = ANGLE_OPTIONS[Math.floor(Math.random() * 4)];
+  currentParams = {
+    angle:    currentAngle * Math.PI / 180 + Math.PI / 2,
+    freq:     p.freq,
+    sigma:    p.sigma,
+    contrast: p.contrast,
+    phase:    Math.random() * Math.PI * 2,
+    noise:    p.noise,
+    time:     0,
+    seed:     Math.random() * 1000,
+  };
+
+  // Reset answer buttons
+  document.querySelectorAll('.ans-btn').forEach(b => b.classList.remove('correct','wrong'));
+
+  awaitingAnswer = true;
+
+  // Difficulty dots
+  if (difficulty === 'adaptive') {
+    const lvl = Math.min(adaptiveLevel, 4);
+    for (let i = 0; i < 5; i++) {
+      document.getElementById('dd'+i).classList.toggle('active', i <= lvl);
+    }
+  }
+
+  // Exposure limit for hard mode
+  clearTimeout(exposureTimer);
+  if (p.exposureMs < 99999) {
+    exposureTimer = setTimeout(() => {
+      if (awaitingAnswer) handleAnswer(-1); // timeout = wrong
+    }, p.exposureMs);
+  }
+}
+
+function handleAnswer(userAngle) {
+  if (!awaitingAnswer) return;
+  awaitingAnswer = false;
+  clearTimeout(exposureTimer);
+
+  const isCorrect = userAngle === currentAngle;
+
+  if (isCorrect) {
+    correct++;
+    streak++;
+    const mult = Math.min(streak, 5);
+    score += 10 * mult;
+    if (difficulty === 'adaptive' && streak % 3 === 0) adaptiveLevel = Math.min(adaptiveLevel + 1, 6);
+    screenFlash('green');
+    // highlight correct button
+    document.querySelectorAll('.ans-btn').forEach(b => {
+      if (parseInt(b.dataset.angle) === userAngle) b.classList.add('correct');
+    });
+  } else {
+    streak = 0;
+    if (difficulty === 'adaptive') adaptiveLevel = Math.max(adaptiveLevel - 1, 0);
+    screenFlash('red');
+    // show wrong + reveal correct
+    document.querySelectorAll('.ans-btn').forEach(b => {
+      const a = parseInt(b.dataset.angle);
+      if (a === userAngle) b.classList.add('wrong');
+      if (a === currentAngle) b.classList.add('correct');
+    });
+  }
+
+  document.getElementById('hud-score').textContent = score;
+  document.getElementById('hud-streak').textContent = `×${Math.min(streak,5)||1}`;
+
+  setTimeout(newRound, 600);
+}
+
+function finishGame() {
+  isRunning = false;
+  cancelAnimationFrame(animId);
+
+  const acc = Math.round(correct / totalRounds * 100);
+  document.getElementById('res-correct').textContent = correct;
+  document.getElementById('res-acc').textContent = acc + '%';
+  document.getElementById('res-score').textContent = score;
+  document.getElementById('result-stats').style.display = 'flex';
+
+  const ol = document.getElementById('overlay');
+  ol.querySelector('.overlay-title').textContent = '✓ Готово';
+  document.getElementById('overlay-sub').textContent =
+    `${correct} из ${totalRounds} верно — точность ${acc}%`;
+  document.getElementById('start-btn').textContent = 'ЕЩЁ РАЗ';
+  ol.style.display = 'flex';
+
+  saveStats();
+}
+
+function startGame() {
+  round = 0; score = 0; streak = 0; correct = 0;
+  adaptiveLevel = 3;
+  isRunning = true;
+  document.getElementById('overlay').style.display = 'none';
+  document.getElementById('result-stats').style.display = 'none';
+  document.getElementById('hud-score').textContent = 0;
+  document.getElementById('hud-streak').textContent = '×1';
+
+  startT = performance.now();
+
+  function loop(t) {
+    const relT = t - startT;
+    renderBG(relT);
+    if (currentParams) {
+      currentParams.time = relT * 0.001;
+      renderGabor(currentParams);
+    }
+    animId = requestAnimationFrame(loop);
+  }
+  animId = requestAnimationFrame(loop);
+
+  newRound();
+}
+
+// ============================================================
+// EVENTS
+// ============================================================
+document.getElementById('start-btn').addEventListener('click', startGame);
+
+document.getElementById('answer-btns').addEventListener('click', e => {
+  const btn = e.target.closest('.ans-btn');
+  if (!btn || !awaitingAnswer) return;
+  handleAnswer(parseInt(btn.dataset.angle));
+});
+
+// Keyboard shortcuts
+document.addEventListener('keydown', e => {
+  if (!awaitingAnswer) return;
+  const map = { 'ArrowLeft': 135, 'ArrowUp': 90, 'ArrowRight': 45, 'ArrowDown': 0,
+                'a': 135, 'w': 90, 'd': 45, 's': 0,
+                '1': 135, '2': 90, '3': 0, '4': 45 };
+  if (map[e.key] !== undefined) handleAnswer(map[e.key]);
+});
+
+// Settings
+document.getElementById('diff-btns').addEventListener('click', e => {
+  const btn = e.target.closest('[data-diff]');
+  if (!btn) return;
+  difficulty = btn.dataset.diff;
+  document.querySelectorAll('#diff-btns .btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+});
+
+document.getElementById('rounds-btns').addEventListener('click', e => {
+  const btn = e.target.closest('[data-rounds]');
+  if (!btn) return;
+  totalRounds = parseInt(btn.dataset.rounds);
+  document.querySelectorAll('#rounds-btns .btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+});
+
+document.querySelectorAll('.eye-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    eyeMode = btn.dataset.eye;
+    document.querySelectorAll('.eye-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  });
+});
+
+window.addEventListener('resize', () => {
+  bgCanvas.width  = bgCanvas.offsetWidth;
+  bgCanvas.height = bgCanvas.offsetHeight;
+});
+
+function screenFlash(color) {
+  const el = document.getElementById('screen-flash');
+  el.className = '';
+  void el.offsetWidth;
+  el.className = color;
+}
+
+function saveStats() {
+  const s = JSON.parse(localStorage.getItem('eyegym_stats') || '{}');
+  s.sessions = (s.sessions || 0) + 1;
+  s.minutes  = (s.minutes  || 0) + 1;
+  const today = new Date().toDateString();
+  if (s.today_date !== today) { s.today_date = today; s.today_exercises = []; s.streak = (s.streak||0)+1; }
+  if (!s.today_exercises.includes('Габор')) s.today_exercises.push('Габор');
+  localStorage.setItem('eyegym_stats', JSON.stringify(s));
+}
+
+// ============================================================
+// INIT
+// ============================================================
+initBG();
+initGabor();
+
+// Idle animation before game starts
+(function idleLoop(t) {
+  renderBG(t);
+  requestAnimationFrame(idleLoop);
+})(0);
+</script>
+</body>
+</html>

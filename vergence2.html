@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EyeGym — Вергенция</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#0a0a0f; --surface:#111118; --border:#1e1e2e; --text:#e8e8f0; --muted:#555570; --accent:#10b981; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text); font-family:'Syne',sans-serif; height:100vh; overflow:hidden; display:flex; flex-direction:column; user-select:none; }
+  header { padding:14px 32px; display:flex; align-items:center; gap:24px; border-bottom:1px solid var(--border); background:rgba(10,10,15,0.9); backdrop-filter:blur(12px); flex-shrink:0; z-index:10; }
+  .back-btn { display:flex; align-items:center; gap:8px; color:var(--muted); text-decoration:none; font-family:'DM Mono',monospace; font-size:12px; transition:color 0.2s; }
+  .back-btn:hover { color:var(--accent); }
+  .back-btn svg { width:16px; height:16px; }
+  .header-title { font-size:16px; font-weight:700; flex:1; }
+  .hud { display:flex; gap:24px; }
+  .hud-item { display:flex; flex-direction:column; align-items:flex-end; gap:2px; }
+  .hud-val { font-family:'DM Mono',monospace; font-size:20px; font-weight:500; color:var(--accent); line-height:1; }
+  .hud-label { font-family:'DM Mono',monospace; font-size:9px; color:var(--muted); text-transform:uppercase; letter-spacing:1.5px; }
+  .settings-bar { padding:8px 32px; display:flex; align-items:center; gap:10px; border-bottom:1px solid var(--border); background:rgba(10,10,15,0.7); flex-shrink:0; flex-wrap:wrap; z-index:10; }
+  .settings-label { font-family:'DM Mono',monospace; font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:2px; }
+  .btn-group { display:flex; gap:4px; }
+  .btn { font-family:'DM Mono',monospace; font-size:12px; padding:5px 12px; border-radius:8px; border:1px solid var(--border); background:var(--surface); color:var(--muted); cursor:pointer; transition:all 0.15s; white-space:nowrap; }
+  .btn:hover { border-color:var(--accent); color:var(--text); }
+  .btn.active { border-color:var(--accent); background:rgba(16,185,129,0.1); color:var(--accent); }
+  .sep { width:1px; height:20px; background:var(--border); margin:0 6px; }
+  .main { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; position:relative; overflow:hidden; gap:16px; }
+
+  /* ONE canvas for the whole stereopair */
+  #main-canvas { display:block; position:relative; z-index:5; }
+
+  .meter-wrap { display:flex; align-items:center; gap:12px; position:relative; z-index:5; }
+  .meter-label { font-family:'DM Mono',monospace; font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:1.5px; }
+  .meter-track { width:220px; height:6px; background:var(--border); border-radius:3px; overflow:hidden; }
+  .meter-fill { height:100%; border-radius:3px; background:var(--accent); width:0%; box-shadow:0 0 8px var(--accent); }
+  .meter-val { font-family:'DM Mono',monospace; font-size:12px; color:var(--accent); width:40px; text-align:right; }
+
+  .inst { font-family:'DM Mono',monospace; font-size:13px; color:var(--muted); text-align:center; line-height:1.9; max-width:520px; padding:0 20px; position:relative; z-index:5; }
+  .inst strong { color:var(--accent); font-weight:500; }
+  .hint { font-family:'DM Mono',monospace; font-size:10px; color:var(--muted); opacity:0.4; position:relative; z-index:5; }
+
+  #sf { position:fixed; inset:0; z-index:30; pointer-events:none; opacity:0; }
+  #sf.g { background:rgba(16,185,129,0.08); opacity:1; animation:fo .5s forwards; }
+  #sf.r { background:rgba(239,68,68,0.07); opacity:1; animation:fo .5s forwards; }
+  @keyframes fo { to{opacity:0} }
+
+  .score-pop { position:absolute; z-index:20; font-family:'DM Mono',monospace; font-size:22px; color:var(--accent); pointer-events:none; animation:popup 1s ease-out forwards; }
+  @keyframes popup { 0%{opacity:1;transform:translateY(0)} 100%{opacity:0;transform:translateY(-60px)} }
+
+  #overlay { position:absolute; inset:0; z-index:20; display:flex; flex-direction:column; align-items:center; justify-content:center; background:rgba(10,10,15,0.80); backdrop-filter:blur(6px); gap:18px; padding:24px; }
+  .ov-title { font-size:40px; font-weight:800; letter-spacing:-2px; }
+  .mode-cards { display:flex; gap:12px; flex-wrap:wrap; justify-content:center; }
+  .mc { padding:16px 18px; background:var(--surface); border:1px solid var(--border); border-radius:14px; width:160px; cursor:pointer; transition:all 0.2s; }
+  .mc:hover { border-color:var(--accent); }
+  .mc.sel { border-color:var(--accent); background:rgba(16,185,129,0.08); }
+  .mc-icon { font-size:22px; margin-bottom:6px; }
+  .mc-name { font-size:14px; font-weight:700; margin-bottom:4px; }
+  .mc-desc { font-family:'DM Mono',monospace; font-size:10px; color:var(--muted); line-height:1.6; }
+  .ov-sub { font-family:'DM Mono',monospace; font-size:12px; color:var(--muted); text-align:center; line-height:1.9; max-width:420px; }
+  .ov-sub strong { color:var(--accent); font-weight:400; }
+  .ov-stats { display:flex; gap:24px; padding:14px 24px; background:var(--surface); border:1px solid var(--border); border-radius:14px; }
+  .ov-s { text-align:center; }
+  .ov-v { font-family:'DM Mono',monospace; font-size:26px; color:var(--accent); }
+  .ov-l { font-family:'DM Mono',monospace; font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:1.5px; margin-top:3px; }
+  .start-btn { font-family:'Syne',sans-serif; font-size:16px; font-weight:700; padding:13px 40px; border-radius:12px; border:1px solid var(--accent); background:rgba(16,185,129,0.1); color:var(--accent); cursor:pointer; letter-spacing:1px; transition:all 0.2s; }
+  .start-btn:hover { background:rgba(16,185,129,0.2); box-shadow:0 0 28px -8px var(--accent); transform:scale(1.02); }
+</style>
+</head>
+<body>
+<div id="sf"></div>
+<header>
+  <a href="all.html" class="back-btn">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 3 L5 8 L10 13"/></svg>
+    Назад
+  </a>
+  <div class="header-title">Вергенция</div>
+  <div class="hud">
+    <div class="hud-item"><div class="hud-val" id="hud-t">00:00</div><div class="hud-label">Время</div></div>
+    <div class="hud-item"><div class="hud-val" id="hud-hits">0</div><div class="hud-label">Слияний</div></div>
+    <div class="hud-item"><div class="hud-val" id="hud-s">0</div><div class="hud-label">Очки</div></div>
+  </div>
+</header>
+<div class="settings-bar">
+  <span class="settings-label">Режим</span>
+  <div class="btn-group" id="mode-btns">
+    <button class="btn active" data-mode="looming">Looming</button>
+    <button class="btn" data-mode="facility">Facility</button>
+    <button class="btn" data-mode="jump">Jump</button>
+  </div>
+  <div class="sep"></div>
+  <span class="settings-label">Скорость</span>
+  <div class="btn-group" id="speed-btns">
+    <button class="btn" data-spd="0.4">Медленно</button>
+    <button class="btn active" data-spd="1">Норма</button>
+    <button class="btn" data-spd="2">Быстро</button>
+  </div>
+  <div class="sep"></div>
+  <span class="settings-label">Сессия</span>
+  <div class="btn-group" id="dur-btns">
+    <button class="btn" data-dur="120">2 мин</button>
+    <button class="btn active" data-dur="300">5 мин</button>
+    <button class="btn" data-dur="600">10 мин</button>
+  </div>
+</div>
+
+<div class="main">
+  <!-- Single canvas: draws BOTH circles side by side -->
+  <canvas id="main-canvas"></canvas>
+
+  <div class="meter-wrap">
+    <span class="meter-label">Глубина</span>
+    <div class="meter-track"><div class="meter-fill" id="mf"></div></div>
+    <span class="meter-val" id="mv">0%</span>
+  </div>
+
+  <div class="inst" id="inst">
+    Смотри <strong>между</strong> кругами — найди третий (слияние).<br>
+    Нажми <strong>пробел</strong> когда видишь третий круг.
+  </div>
+  <div class="hint">пробел — слияние · колесо мыши — расстояние</div>
+
+  <div id="overlay">
+    <div class="ov-title">Вергенция</div>
+    <div class="mode-cards">
+      <div class="mc sel" id="mc-looming" onclick="pickMode('looming')">
+        <div class="mc-icon">🔭</div>
+        <div class="mc-name">Looming</div>
+        <div class="mc-desc">Круги пульсируют по размеру — как объект приближается и удаляется.</div>
+      </div>
+      <div class="mc" id="mc-facility" onclick="pickMode('facility')">
+        <div class="mc-icon">⚡</div>
+        <div class="mc-name">Facility</div>
+        <div class="mc-desc">Расстояние между кругами меняется — тренирует скорость переключения.</div>
+      </div>
+      <div class="mc" id="mc-jump" onclick="pickMode('jump')">
+        <div class="mc-icon">🎯</div>
+        <div class="mc-name">Jump</div>
+        <div class="mc-desc">Размер резко переключается между большим и маленьким.</div>
+      </div>
+    </div>
+    <div class="ov-sub" id="ov-sub">
+      <strong>Looming</strong> — круги пульсируют как приближающийся объект.<br>
+      Удержи слияние пока размер меняется.<br>
+      Тренирует vergence-accommodation coupling.
+    </div>
+    <div id="ov-stats" style="display:none" class="ov-stats">
+      <div class="ov-s"><div class="ov-v" id="ov-hits">—</div><div class="ov-l">Слияний</div></div>
+      <div class="ov-s"><div class="ov-v" id="ov-time">—</div><div class="ov-l">Время</div></div>
+      <div class="ov-s"><div class="ov-v" id="ov-score">—</div><div class="ov-l">Очки</div></div>
+    </div>
+    <button class="start-btn" id="start-btn">НАЧАТЬ</button>
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────
+// SINGLE CANVAS — draws both circles on it
+// Much simpler: no CSS sizing issues
+// ─────────────────────────────────────────────
+const CV  = document.getElementById('main-canvas');
+const ctx = CV.getContext('2d');
+
+let W = 600, H = 300; // canvas pixel dimensions
+let gapPx   = 40;     // gap between circles in pixels
+let baseR   = 110;    // base circle radius
+
+let mode       = 'looming';
+let speedMult  = 1.0;
+let sessionDur = 300;
+
+// Animation state
+let animT         = 0;
+let facilityT     = 0;
+let jumpState     = 'near';
+let jumpLastSwap  = 0;
+
+// ─────────────────────────────────────────────
+// RESIZE
+// ─────────────────────────────────────────────
+function resize() {
+  const maxW = Math.min(window.innerWidth - 40, 700);
+  const maxH = window.innerHeight - 280;
+  // Canvas height = enough for the biggest circle
+  baseR = Math.max(60, Math.min(130, Math.min(maxH / 2 - 10, (maxW - gapPx) / 4 - 10)));
+  W = Math.round(baseR * 2 * 2 + gapPx + 40);
+  H = Math.round(baseR * 2 + 20);
+  CV.width  = W;
+  CV.height = H;
+  CV.style.width  = W + 'px';
+  CV.style.height = H + 'px';
+}
+window.addEventListener('resize', resize);
+resize();
+
+// ─────────────────────────────────────────────
+// DRAW STEREOPAIR ON SINGLE CANVAS
+// lx, rx = center x of left and right circles
+// r = radius
+// dispFrac = disparity fraction of r
+// ─────────────────────────────────────────────
+function drawPair(r, gapBetween, dispFrac) {
+  ctx.clearRect(0, 0, W, H);
+
+  const cy   = H / 2;
+  const lx   = W / 2 - gapBetween / 2 - r;  // left circle center x
+  const rx_  = W / 2 + gapBetween / 2 + r;  // right circle center x
+  const disp = Math.round(dispFrac * r);
+
+  drawCircle(lx, cy, r, -disp, 'L');  // left eye: marker shifted left
+  drawCircle(rx_, cy, r, +disp, 'R'); // right eye: marker shifted right
+}
+
+function drawCircle(cx, cy, r, markerShift, label) {
+  // BG
+  ctx.fillStyle = '#0d0d18';
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.fill();
+
+  ctx.save();
+  ctx.beginPath(); ctx.arc(cx, cy, r-1, 0, Math.PI*2); ctx.clip();
+
+  // Pattern: rings + crosshair
+  const w1 = 'rgba(200,200,220,0.5)', w2 = 'rgba(170,170,200,0.2)';
+  for (let i = 1; i <= 5; i++) {
+    ctx.strokeStyle = i%2===0 ? w1 : w2;
+    ctx.lineWidth   = i%2===0 ? 1.2 : 0.7;
+    ctx.beginPath(); ctx.arc(cx, cy, (r-4)*i/5, 0, Math.PI*2); ctx.stroke();
+  }
+  ctx.strokeStyle = w2; ctx.lineWidth = 0.7;
+  ctx.beginPath(); ctx.moveTo(cx-r*.6, cy); ctx.lineTo(cx+r*.6, cy); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx, cy-r*.6); ctx.lineTo(cx, cy+r*.6); ctx.stroke();
+
+  // Depth marker — shifted differently per eye → creates 3D disparity
+  ctx.strokeStyle = '#10b981'; ctx.lineWidth = Math.max(1.5, r*0.025); ctx.globalAlpha = 0.75;
+  ctx.beginPath(); ctx.arc(cx + markerShift, cy, r*0.12, 0, Math.PI*2); ctx.stroke();
+  ctx.fillStyle = '#10b981'; ctx.globalAlpha = 0.65;
+  ctx.beginPath(); ctx.arc(cx + markerShift, cy, r*0.03, 0, Math.PI*2); ctx.fill();
+  ctx.globalAlpha = 1;
+
+  ctx.restore();
+
+  // Outer ring
+  ctx.strokeStyle = 'rgba(16,185,129,0.3)'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(cx, cy, r-1, 0, Math.PI*2); ctx.stroke();
+
+  // Label
+  ctx.fillStyle = 'rgba(85,85,112,0.35)';
+  ctx.font = `${Math.max(9, r*0.1)}px DM Mono`; ctx.textAlign = 'center';
+  ctx.fillText(label, cx, cy + r - r*0.1);
+}
+
+// ─────────────────────────────────────────────
+// MODE FRAMES — called every rAF
+// ─────────────────────────────────────────────
+function frame(nowMs) {
+  animT    += 0.012 * speedMult;
+  facilityT += 0.022 * speedMult;
+
+  if (mode === 'looming') {
+    // r oscillates between 45% and 100% of baseR
+    const phase = (Math.sin(animT) + 1) / 2; // 0..1
+    const r = baseR * (0.45 + phase * 0.55);
+    drawPair(r, gapPx, 0.08);
+    setMeter(phase * 100);
+
+  } else if (mode === 'facility') {
+    // gap between circles oscillates — circles come closer then move apart
+    const phase = (Math.sin(facilityT) + 1) / 2; // 0..1
+    const gap = gapPx * 0.2 + phase * gapPx * 1.8; // gap changes ±90%
+    drawPair(baseR, gap, 0.05 + phase * 0.1);
+    setMeter(phase * 100);
+
+  } else { // jump
+    const INTERVAL = Math.round(2200 / speedMult);
+    if (nowMs - jumpLastSwap > INTERVAL) {
+      jumpState = jumpState === 'near' ? 'far' : 'near';
+      jumpLastSwap = nowMs;
+      flash(jumpState === 'near' ? 'g' : 'r');
+    }
+    const r   = jumpState === 'near' ? baseR : baseR * 0.55;
+    const gap = jumpState === 'near' ? gapPx * 0.5 : gapPx * 1.5;
+    drawPair(r, gap, jumpState === 'near' ? 0.12 : 0.04);
+    setMeter(jumpState === 'near' ? 85 : 15);
+  }
+}
+
+// ─────────────────────────────────────────────
+// GAME
+// ─────────────────────────────────────────────
+let isRunning=false, fusing=false, holdStart=null;
+let hits=0, score=0, startTime=null, timerInt=null, rafId=null;
+const HOLD_REQ = 2.5;
+
+function mainLoop(nowMs) {
+  frame(nowMs);
+  rafId = requestAnimationFrame(mainLoop);
+}
+
+function startGame() {
+  isRunning=true; fusing=false; holdStart=null; hits=0; score=0;
+  animT=0; facilityT=0; jumpState='near'; jumpLastSwap=performance.now();
+  document.getElementById('overlay').style.display='none';
+  document.getElementById('ov-stats').style.display='none';
+  document.getElementById('hud-hits').textContent=0;
+  document.getElementById('hud-s').textContent=0;
+  setMeter(0); resize();
+  startTime=Date.now();
+  timerInt=setInterval(tickTimer,100);
+}
+
+function tickTimer() {
+  const el=(Date.now()-startTime)/1000;
+  const mm=String(Math.floor(el/60)).padStart(2,'0');
+  const ss=String(Math.floor(el%60)).padStart(2,'0');
+  document.getElementById('hud-t').textContent=`${mm}:${ss}`;
+
+  if (fusing && holdStart) {
+    const held=(Date.now()-holdStart)/1000;
+    const pct=Math.min(held/HOLD_REQ*100,100);
+    setMeter(pct);
+    if (held>=HOLD_REQ) registerFusion();
+  }
+  if (el>=sessionDur) finishGame();
+}
+
+function registerFusion() {
+  fusing=false; holdStart=null;
+  hits++; score+=50+hits*5;
+  document.getElementById('hud-hits').textContent=hits;
+  document.getElementById('hud-s').textContent=score;
+  flash('g');
+  const pop=document.createElement('div');
+  pop.className='score-pop'; pop.textContent=`+${50+hits*5}`;
+  pop.style.cssText='top:35%;left:50%;transform:translateX(-50%);position:absolute';
+  document.querySelector('.main').appendChild(pop);
+  setTimeout(()=>pop.remove(),1000);
+  document.getElementById('inst').innerHTML=`<strong>Слияние #${hits}!</strong> Снова найди третий круг.`;
+}
+
+function finishGame() {
+  isRunning=false; clearInterval(timerInt);
+  const el=Math.round((Date.now()-startTime)/1000);
+  document.getElementById('ov-hits').textContent=hits;
+  document.getElementById('ov-time').textContent=`${String(Math.floor(el/60)).padStart(2,'0')}:${String(el%60).padStart(2,'0')}`;
+  document.getElementById('ov-score').textContent=score;
+  document.getElementById('ov-stats').style.display='flex';
+  const ol=document.getElementById('overlay');
+  ol.querySelector('.ov-title').textContent='✓ Готово';
+  document.getElementById('ov-sub').textContent=`${hits} слияний за сессию`;
+  document.getElementById('start-btn').textContent='ЕЩЁ РАЗ';
+  ol.style.display='flex';
+  saveStats();
+}
+
+function setMeter(p) {
+  if (isRunning && fusing) return; // don't override hold progress
+  document.getElementById('mf').style.width=p+'%';
+  document.getElementById('mv').textContent=Math.round(p)+'%';
+}
+
+// ─────────────────────────────────────────────
+// INPUT
+// ─────────────────────────────────────────────
+document.addEventListener('keydown',e=>{
+  if(e.code!=='Space')return; e.preventDefault();
+  if(!fusing){fusing=true;holdStart=Date.now();document.getElementById('inst').innerHTML=`<strong>Держи!</strong> Не двигай взгляд. Отпусти пробел если потерял.`;}
+});
+document.addEventListener('keyup',e=>{
+  if(e.code!=='Space')return;
+  if(fusing){fusing=false;holdStart=null;const p=parseFloat(document.getElementById('mf').style.width)||0;if(p<95){setMeter(0);document.getElementById('inst').innerHTML=`Потерял. Снова расфокусируй взгляд между кругами.<br><strong>Пробел</strong> — когда снова видишь третий.`;}}
+});
+
+CV.addEventListener('touchstart',e=>{e.preventDefault();if(!fusing){fusing=true;holdStart=Date.now();}},{passive:false});
+CV.addEventListener('touchend',  e=>{if(fusing){fusing=false;holdStart=null;const p=parseFloat(document.getElementById('mf').style.width)||0;if(p<95)setMeter(0);}});
+
+document.querySelector('.main').addEventListener('wheel',e=>{
+  e.preventDefault();
+  gapPx=Math.max(0,Math.min(300,gapPx-e.deltaY*0.4));
+  resize();
+},{passive:false});
+
+// ─────────────────────────────────────────────
+// SETTINGS
+// ─────────────────────────────────────────────
+const MODE_DESCS={
+  looming:`<strong>Looming</strong> — круги пульсируют в размере.<br>Удержи слияние пока размер меняется.<br>Тренирует vergence-accommodation coupling.`,
+  facility:`<strong>Facility</strong> — расстояние между кругами волнообразно меняется.<br>Тренирует скорость переключения конвергенция↔дивергенция.`,
+  jump:`<strong>Jump</strong> — резкое переключение большой↔маленький.<br>Как взгляд с приборной панели на дорогу.<br>Тренирует быструю перестройку глубины.`,
+};
+
+function pickMode(m) {
+  mode=m; animT=0; facilityT=0;
+  document.querySelectorAll('.mc').forEach(c=>c.classList.remove('sel'));
+  document.getElementById('mc-'+m).classList.add('sel');
+  document.querySelectorAll('#mode-btns .btn').forEach(b=>b.classList.toggle('active',b.dataset.mode===m));
+  document.getElementById('ov-sub').innerHTML=MODE_DESCS[m];
+}
+
+document.getElementById('mode-btns').addEventListener('click',e=>{const b=e.target.closest('[data-mode]');if(b)pickMode(b.dataset.mode);});
+document.getElementById('speed-btns').addEventListener('click',e=>{const b=e.target.closest('[data-spd]');if(!b)return;speedMult=parseFloat(b.dataset.spd);document.querySelectorAll('#speed-btns .btn').forEach(x=>x.classList.remove('active'));b.classList.add('active');});
+document.getElementById('dur-btns').addEventListener('click',e=>{const b=e.target.closest('[data-dur]');if(!b)return;sessionDur=parseInt(b.dataset.dur);document.querySelectorAll('#dur-btns .btn').forEach(x=>x.classList.remove('active'));b.classList.add('active');});
+document.getElementById('start-btn').addEventListener('click',startGame);
+
+function flash(cls){const el=document.getElementById('sf');el.className='';void el.offsetWidth;el.className=cls;}
+
+function saveStats(){
+  const s=JSON.parse(localStorage.getItem('eyegym_stats')||'{}');
+  s.sessions=(s.sessions||0)+1;s.minutes=(s.minutes||0)+Math.round(sessionDur/60);
+  const today=new Date().toDateString();
+  if(s.today_date!==today){s.today_date=today;s.today_exercises=[];s.streak=(s.streak||0)+1;}
+  if(!s.today_exercises.includes('Вергенция'))s.today_exercises.push('Вергенция');
+  localStorage.setItem('eyegym_stats',JSON.stringify(s));
+}
+
+// ─────────────────────────────────────────────
+// START — animation runs immediately, always
+// ─────────────────────────────────────────────
+resize();
+requestAnimationFrame(mainLoop);
+</script>
+</body>
+</html>

@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EyeGym — Счёт объектов</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#0a0a0f; --surface:#111118; --border:#1e1e2e; --text:#e8e8f0; --muted:#555570; --accent:#f59e0b; --hit:#10b981; --err:#ef4444; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text); font-family:'Syne',sans-serif; height:100vh; overflow:hidden; display:flex; flex-direction:column; user-select:none; }
+  header { padding:14px 32px; display:flex; align-items:center; gap:24px; border-bottom:1px solid var(--border); background:rgba(10,10,15,0.9); backdrop-filter:blur(12px); flex-shrink:0; z-index:10; position:relative; }
+  .back-btn { display:flex; align-items:center; gap:8px; color:var(--muted); text-decoration:none; font-family:'DM Mono',monospace; font-size:12px; transition:color 0.2s; }
+  .back-btn:hover { color:var(--accent); }
+  .back-btn svg { width:16px; height:16px; }
+  .header-title { font-size:16px; font-weight:700; flex:1; }
+  .hud { display:flex; gap:24px; }
+  .hud-item { display:flex; flex-direction:column; align-items:flex-end; gap:2px; }
+  .hud-val { font-family:'DM Mono',monospace; font-size:20px; font-weight:500; color:var(--accent); line-height:1; }
+  .hud-val.g { color:var(--hit); }
+  .hud-label { font-family:'DM Mono',monospace; font-size:9px; color:var(--muted); text-transform:uppercase; letter-spacing:1.5px; }
+  .settings-bar { padding:8px 32px; display:flex; align-items:center; gap:10px; border-bottom:1px solid var(--border); background:rgba(10,10,15,0.7); flex-shrink:0; flex-wrap:wrap; z-index:10; position:relative; }
+  .settings-label { font-family:'DM Mono',monospace; font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:2px; }
+  .btn-group { display:flex; gap:4px; }
+  .btn { font-family:'DM Mono',monospace; font-size:12px; padding:5px 12px; border-radius:8px; border:1px solid var(--border); background:var(--surface); color:var(--muted); cursor:pointer; transition:all 0.15s; white-space:nowrap; }
+  .btn:hover { border-color:var(--accent); color:var(--text); }
+  .btn.active { border-color:var(--accent); background:rgba(245,158,11,0.12); color:var(--accent); }
+  .sep { width:1px; height:20px; background:var(--border); margin:0 6px; }
+  .main { flex:1; position:relative; overflow:hidden; display:flex; align-items:center; justify-content:center; }
+  #bg-canvas { position:absolute; inset:0; width:100%; height:100%; }
+  #obj-canvas { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+  #answer-ui { position:relative; z-index:10; display:flex; flex-direction:column; align-items:center; gap:16px; opacity:0; pointer-events:none; transition:opacity 0.2s; }
+  #answer-ui.show { opacity:1; pointer-events:all; }
+  .answer-prompt { font-family:'DM Mono',monospace; font-size:14px; color:var(--muted); text-align:center; letter-spacing:1px; }
+  .answer-row { display:flex; gap:10px; flex-wrap:wrap; justify-content:center; max-width:520px; }
+  .ans-num { width:64px; height:64px; border-radius:14px; border:1px solid var(--border); background:rgba(17,17,24,0.88); backdrop-filter:blur(8px); font-family:'DM Mono',monospace; font-size:22px; font-weight:500; color:var(--text); cursor:pointer; transition:all 0.15s; display:flex; align-items:center; justify-content:center; }
+  .ans-num:hover { border-color:var(--accent); color:var(--accent); transform:scale(1.06); }
+  .ans-num:active { transform:scale(0.94); }
+  .ans-num.correct { border-color:var(--hit); background:rgba(16,185,129,0.15); color:var(--hit); box-shadow:0 0 20px -4px var(--hit); }
+  .ans-num.wrong { border-color:var(--err); background:rgba(239,68,68,0.12); color:var(--err); animation:shake 0.3s; }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-5px)} 60%{transform:translateX(5px)} }
+  #round-ring { position:absolute; top:16px; left:50%; transform:translateX(-50%); z-index:10; display:flex; gap:5px; }
+  .rr-dot { width:7px; height:7px; border-radius:50%; background:var(--border); transition:background 0.3s; }
+  .rr-dot.done { background:var(--hit); }
+  .rr-dot.cur { background:var(--accent); box-shadow:0 0 8px var(--accent); }
+  #sf { position:fixed; inset:0; z-index:30; pointer-events:none; opacity:0; }
+  #sf.g { background:rgba(16,185,129,0.07); opacity:1; animation:fo .4s forwards; }
+  #sf.r { background:rgba(239,68,68,0.07); opacity:1; animation:fo .4s forwards; }
+  @keyframes fo { to{opacity:0} }
+  #overlay { position:absolute; inset:0; z-index:20; display:flex; flex-direction:column; align-items:center; justify-content:center; background:rgba(10,10,15,0.92); backdrop-filter:blur(20px); gap:20px; padding:20px; }
+  .ov-title { font-size:44px; font-weight:800; letter-spacing:-2px; }
+  .ov-sub { font-family:'DM Mono',monospace; font-size:13px; color:var(--muted); text-align:center; line-height:2; max-width:380px; }
+  .ov-sub strong { color:var(--accent); font-weight:500; }
+  .ov-stats { display:flex; gap:28px; padding:16px 28px; background:var(--surface); border:1px solid var(--border); border-radius:14px; }
+  .ov-s { text-align:center; }
+  .ov-v { font-family:'DM Mono',monospace; font-size:28px; color:var(--accent); }
+  .ov-l { font-family:'DM Mono',monospace; font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:1.5px; margin-top:4px; }
+  .start-btn { font-family:'Syne',sans-serif; font-size:16px; font-weight:700; padding:14px 44px; border-radius:12px; border:1px solid var(--accent); background:rgba(245,158,11,0.1); color:var(--accent); cursor:pointer; letter-spacing:1px; transition:all 0.2s; }
+  .start-btn:hover { background:rgba(245,158,11,0.2); box-shadow:0 0 28px -8px var(--accent); transform:scale(1.02); }
+</style>
+</head>
+<body>
+<div id="sf"></div>
+<header>
+  <a href="all.html" class="back-btn">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 3 L5 8 L10 13"/></svg>
+    Назад
+  </a>
+  <div class="header-title">Счёт объектов</div>
+  <div class="hud">
+    <div class="hud-item"><div class="hud-val" id="hud-r">0/20</div><div class="hud-label">Раунд</div></div>
+    <div class="hud-item"><div class="hud-val" id="hud-streak">×1</div><div class="hud-label">Серия</div></div>
+    <div class="hud-item"><div class="hud-val g" id="hud-s">0</div><div class="hud-label">Очки</div></div>
+  </div>
+</header>
+<div class="settings-bar">
+  <span class="settings-label">Сложность</span>
+  <div class="btn-group" id="diff-btns">
+    <button class="btn" data-diff="easy">Лёгко</button>
+    <button class="btn active" data-diff="medium">Средне</button>
+    <button class="btn" data-diff="hard">Сложно</button>
+  </div>
+  <div class="sep"></div>
+  <span class="settings-label">Макс объектов</span>
+  <div class="btn-group" id="max-btns">
+    <button class="btn" data-max="5">до 5</button>
+    <button class="btn active" data-max="9">до 9</button>
+    <button class="btn" data-max="15">до 15</button>
+  </div>
+  <div class="sep"></div>
+  <span class="settings-label">Раундов</span>
+  <div class="btn-group" id="rounds-btns">
+    <button class="btn" data-rounds="10">10</button>
+    <button class="btn active" data-rounds="20">20</button>
+    <button class="btn" data-rounds="30">30</button>
+  </div>
+</div>
+<div class="main">
+  <canvas id="bg-canvas"></canvas>
+  <canvas id="obj-canvas"></canvas>
+  <div id="round-ring"></div>
+  <div id="answer-ui">
+    <div class="answer-prompt">Сколько объектов?</div>
+    <div class="answer-row" id="answer-row"></div>
+  </div>
+  <div id="overlay">
+    <div class="ov-title">Счёт</div>
+    <div class="ov-sub">На фоне движущихся полос мелькнут объекты.<br>Успей <strong>сосчитать</strong> — выбери число.<br>Цифры 1–9 на клавиатуре тоже работают.</div>
+    <div id="ov-stats-wrap" style="display:none" class="ov-stats">
+      <div class="ov-s"><div class="ov-v" id="ov-correct">—</div><div class="ov-l">Верно</div></div>
+      <div class="ov-s"><div class="ov-v" id="ov-acc">—</div><div class="ov-l">Точность</div></div>
+      <div class="ov-s"><div class="ov-v" id="ov-score">—</div><div class="ov-l">Счёт</div></div>
+    </div>
+    <button class="start-btn" id="start-btn">НАЧАТЬ</button>
+  </div>
+</div>
+<script>
+const DIFF={easy:{flashMs:1600,stripeSpeed:0.5,stripeOpacity:0.45,objSize:1.4},medium:{flashMs:1100,stripeSpeed:1.1,stripeOpacity:0.78,objSize:1.0},hard:{flashMs:550,stripeSpeed:2.2,stripeOpacity:0.95,objSize:0.7}};
+let difficulty='medium',maxObjects=9,totalRounds=20;
+const bgC=document.getElementById('bg-canvas'),objC=document.getElementById('obj-canvas');
+const bgX=bgC.getContext('2d'),objX=objC.getContext('2d');
+function resize(){bgC.width=objC.width=bgC.offsetWidth;bgC.height=objC.height=bgC.offsetHeight;}
+window.addEventListener('resize',resize);resize();
+let stripeOff=0,flickT=0;
+function drawBG(){const W=bgC.width,H=bgC.height;bgX.clearRect(0,0,W,H);if(!isRunning)return;const d=DIFF[difficulty],period=72;stripeOff+=d.stripeSpeed;if(stripeOff>period)stripeOff-=period;flickT+=0.07;const flk=0.78+0.13*Math.sin(flickT*3.7)+0.09*Math.sin(flickT*11.3+1.2);const op=d.stripeOpacity*flk;const diag=Math.sqrt(W*W+H*H);bgX.save();bgX.translate(W/2,H/2);bgX.rotate(Math.PI/4);bgX.shadowColor=`rgba(200,255,255,${op*0.8})`;bgX.shadowBlur=16;for(let x=-diag/2-period+(stripeOff%period);x<diag/2+period;x+=period){bgX.fillStyle=`rgba(255,255,255,${op})`;bgX.fillRect(x,-diag/2,36,diag);}bgX.restore();}
+const SHAPES=['circle','square','triangle','diamond','star'];
+const COLORS=['#f59e0b','#ec4899','#00e5ff','#10b981','#a78bfa','#fb923c'];
+let flashObjs=[],showingObjs=false,fadeAlpha=0,fadeDir=0;
+function genObjects(count){const W=objC.width,H=objC.height,d=DIFF[difficulty];const r=18*d.objSize,m=r+24,objs=[];let tries=0;while(objs.length<count&&tries<600){tries++;const x=m+Math.random()*(W-m*2),y=m+Math.random()*(H-m*2);let ok=true;for(const o of objs){if(Math.hypot(x-o.x,y-o.y)<r*2.8){ok=false;break;}}if(ok)objs.push({x,y,r,shape:SHAPES[Math.floor(Math.random()*SHAPES.length)],color:COLORS[Math.floor(Math.random()*COLORS.length)]});}return objs;}
+function drawObjs(objs,alpha){objX.clearRect(0,0,objC.width,objC.height);objX.globalAlpha=alpha;for(const o of objs){objX.fillStyle=o.color;objX.shadowColor=o.color;objX.shadowBlur=14;objX.beginPath();if(o.shape==='circle'){objX.arc(o.x,o.y,o.r,0,Math.PI*2);}else if(o.shape==='square'){objX.rect(o.x-o.r*.8,o.y-o.r*.8,o.r*1.6,o.r*1.6);}else if(o.shape==='triangle'){objX.moveTo(o.x,o.y-o.r);objX.lineTo(o.x+o.r*.9,o.y+o.r*.6);objX.lineTo(o.x-o.r*.9,o.y+o.r*.6);}else if(o.shape==='diamond'){objX.moveTo(o.x,o.y-o.r);objX.lineTo(o.x+o.r*.7,o.y);objX.lineTo(o.x,o.y+o.r);objX.lineTo(o.x-o.r*.7,o.y);}else if(o.shape==='star'){for(let i=0;i<5;i++){const a1=(i*4*Math.PI/5)-Math.PI/2,a2=(i*4*Math.PI/5+2*Math.PI/5)-Math.PI/2;i===0?objX.moveTo(o.x+Math.cos(a1)*o.r,o.y+Math.sin(a1)*o.r):objX.lineTo(o.x+Math.cos(a1)*o.r,o.y+Math.sin(a1)*o.r);objX.lineTo(o.x+Math.cos(a2)*o.r*.42,o.y+Math.sin(a2)*o.r*.42);}}objX.closePath();objX.fill();}objX.globalAlpha=1;objX.shadowBlur=0;}
+let isRunning=false,round=0,score=0,streak=0,correctCount=0,currentCount=0,awaitingAnswer=false,animId=null;
+function startGame(){isRunning=true;round=0;score=0;streak=0;correctCount=0;awaitingAnswer=false;showingObjs=false;objX.clearRect(0,0,objC.width,objC.height);document.getElementById('overlay').style.display='none';document.getElementById('hud-s').textContent=0;document.getElementById('hud-streak').textContent='×1';buildRing();resize();loop();setTimeout(newRound,500);}
+function loop(){if(!isRunning)return;drawBG();if(showingObjs){if(fadeDir===1)fadeAlpha=Math.min(1,fadeAlpha+0.1);else if(fadeDir===-1)fadeAlpha=Math.max(0,fadeAlpha-0.1);drawObjs(flashObjs,fadeAlpha);}animId=requestAnimationFrame(loop);}
+function newRound(){if(round>=totalRounds){finishGame();return;}round++;document.getElementById('hud-r').textContent=`${round}/${totalRounds}`;updateRing();const minN=Math.max(1,Math.floor(maxObjects*.25));currentCount=minN+Math.floor(Math.random()*(maxObjects-minN+1));flashObjs=genObjects(currentCount);document.getElementById('answer-ui').classList.remove('show');document.querySelectorAll('.ans-num').forEach(b=>b.classList.remove('correct','wrong'));showingObjs=true;fadeAlpha=0;fadeDir=1;const d=DIFF[difficulty];setTimeout(()=>{fadeDir=-1;setTimeout(()=>{showingObjs=false;objX.clearRect(0,0,objC.width,objC.height);showAnswerUI();},300);},d.flashMs);}
+function showAnswerUI(){awaitingAnswer=true;const row=document.getElementById('answer-row');row.innerHTML='';const choices=new Set([currentCount]);let attempts=0;while(choices.size<Math.min(7,maxObjects)&&attempts<200){attempts++;const n=Math.max(1,Math.min(maxObjects,currentCount+Math.floor(Math.random()*9)-4));choices.add(n);}for(let n=1;choices.size<Math.min(7,maxObjects)&&n<=maxObjects;n++)choices.add(n);[...choices].sort((a,b)=>a-b).forEach(n=>{const btn=document.createElement('button');btn.className='ans-num';btn.textContent=n;btn.dataset.n=n;btn.addEventListener('click',()=>handleAnswer(n,btn));row.appendChild(btn);});document.getElementById('answer-ui').classList.add('show');}
+function handleAnswer(n,btn){if(!awaitingAnswer)return;awaitingAnswer=false;document.getElementById('answer-ui').classList.remove('show');const ok=n===currentCount;if(ok){correctCount++;streak++;const m=Math.min(streak,5);score+=10*m;btn.classList.add('correct');flash('g');}else{streak=0;score=Math.max(0,score-3);btn.classList.add('wrong');document.querySelectorAll(`.ans-num[data-n="${currentCount}"]`).forEach(b=>b.classList.add('correct'));flash('r');}document.getElementById('hud-s').textContent=score;document.getElementById('hud-streak').textContent=`×${Math.min(streak,5)||1}`;updateRing();setTimeout(newRound,700);}
+function finishGame(){isRunning=false;cancelAnimationFrame(animId);objX.clearRect(0,0,objC.width,objC.height);bgX.clearRect(0,0,bgC.width,bgC.height);const acc=Math.round(correctCount/totalRounds*100);document.getElementById('ov-correct').textContent=correctCount;document.getElementById('ov-acc').textContent=acc+'%';document.getElementById('ov-score').textContent=score;document.getElementById('ov-stats-wrap').style.display='flex';const ol=document.getElementById('overlay');ol.querySelector('.ov-title').textContent='✓ Готово';ol.querySelector('.ov-sub').innerHTML=`${correctCount} из ${totalRounds} верно — точность ${acc}%`;document.getElementById('start-btn').textContent='ЕЩЁ РАЗ';ol.style.display='flex';saveStats();}
+function buildRing(){const ring=document.getElementById('round-ring');ring.innerHTML='';for(let i=0;i<Math.min(totalRounds,20);i++){const d=document.createElement('div');d.className='rr-dot';d.id=`rd${i}`;ring.appendChild(d);}}
+function updateRing(){for(let i=0;i<Math.min(totalRounds,20);i++){const d=document.getElementById(`rd${i}`);if(!d)continue;d.className='rr-dot'+(i<round-1?' done':i===round-1?' cur':'');}}
+function flash(cls){const el=document.getElementById('sf');el.className='';void el.offsetWidth;el.className=cls;}
+document.addEventListener('keydown',e=>{if(!awaitingAnswer)return;const n=parseInt(e.key);if(n>=1&&n<=9){const b=document.querySelector(`.ans-num[data-n="${n}"]`);if(b)handleAnswer(n,b);}});
+['diff-btns','max-btns','rounds-btns'].forEach(id=>{const key=id==='diff-btns'?'diff':id==='max-btns'?'max':'rounds';document.getElementById(id).addEventListener('click',e=>{const b=e.target.closest(`[data-${key}]`);if(!b)return;if(key==='diff')difficulty=b.dataset.diff;else if(key==='max')maxObjects=parseInt(b.dataset.max);else totalRounds=parseInt(b.dataset.rounds);document.querySelectorAll(`#${id} .btn`).forEach(x=>x.classList.remove('active'));b.classList.add('active');});});
+document.getElementById('start-btn').addEventListener('click',startGame);
+function saveStats(){const s=JSON.parse(localStorage.getItem('eyegym_stats')||'{}');s.sessions=(s.sessions||0)+1;s.minutes=(s.minutes||0)+1;const today=new Date().toDateString();if(s.today_date!==today){s.today_date=today;s.today_exercises=[];s.streak=(s.streak||0)+1;}if(!s.today_exercises.includes('Счёт'))s.today_exercises.push('Счёт');localStorage.setItem('eyegym_stats',JSON.stringify(s));}
+</script>
+</body>
+</html>

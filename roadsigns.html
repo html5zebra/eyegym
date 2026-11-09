@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EyeGym — Знаки на дороге</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#0a0a0f; --surface:#111118; --border:#1e1e2e; --text:#e8e8f0; --muted:#555570; --accent:#10b981; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text); font-family:'Syne',sans-serif; height:100vh; overflow:hidden; display:flex; flex-direction:column; user-select:none; }
+  header { padding:14px 32px; display:flex; align-items:center; gap:24px; border-bottom:1px solid var(--border); background:rgba(10,10,15,0.9); backdrop-filter:blur(12px); flex-shrink:0; z-index:10; }
+  .back-btn { display:flex; align-items:center; gap:8px; color:var(--muted); text-decoration:none; font-family:'DM Mono',monospace; font-size:12px; transition:color 0.2s; }
+  .back-btn:hover { color:var(--accent); }
+  .back-btn svg { width:16px; height:16px; }
+  .header-title { font-size:16px; font-weight:700; flex:1; }
+  .hud { display:flex; gap:24px; }
+  .hud-item { display:flex; flex-direction:column; align-items:flex-end; gap:2px; }
+  .hud-val { font-family:'DM Mono',monospace; font-size:20px; font-weight:500; color:var(--accent); line-height:1; }
+  .hud-label { font-family:'DM Mono',monospace; font-size:9px; color:var(--muted); text-transform:uppercase; letter-spacing:1.5px; }
+  .settings-bar { padding:8px 32px; display:flex; align-items:center; gap:10px; border-bottom:1px solid var(--border); background:rgba(10,10,15,0.7); flex-shrink:0; flex-wrap:wrap; z-index:10; }
+  .settings-label { font-family:'DM Mono',monospace; font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:2px; }
+  .btn-group { display:flex; gap:4px; }
+  .btn { font-family:'DM Mono',monospace; font-size:12px; padding:5px 12px; border-radius:8px; border:1px solid var(--border); background:var(--surface); color:var(--muted); cursor:pointer; transition:all 0.15s; white-space:nowrap; }
+  .btn:hover { border-color:var(--accent); color:var(--text); }
+  .btn.active { border-color:var(--accent); background:rgba(16,185,129,0.1); color:var(--accent); }
+  .sep { width:1px; height:20px; background:var(--border); margin:0 6px; }
+
+  .main { flex:1; position:relative; overflow:hidden; }
+  #canvas { position:absolute; inset:0; width:100%; height:100%; cursor:crosshair; }
+
+  #timer-ring { position:absolute; top:16px; right:24px; z-index:10; }
+  #timer-ring svg { width:56px; height:56px; }
+  .ring-bg { fill:none; stroke:var(--border); stroke-width:4; }
+  .ring-fill { fill:none; stroke:var(--accent); stroke-width:4; stroke-linecap:round; stroke-dasharray:138; stroke-dashoffset:0; transition:stroke-dashoffset 0.1s; transform:rotate(-90deg); transform-origin:50% 50%; }
+  .ring-text { font-family:'DM Mono',monospace; font-size:13px; fill:var(--text); text-anchor:middle; dominant-baseline:middle; }
+
+  #inst-bar { position:absolute; bottom:20px; left:50%; transform:translateX(-50%); z-index:10; font-family:'DM Mono',monospace; font-size:12px; color:var(--muted); text-align:center; }
+  #inst-bar strong { color:var(--accent); font-weight:500; }
+
+  #sf { position:fixed; inset:0; z-index:30; pointer-events:none; opacity:0; }
+  #sf.g { background:rgba(16,185,129,0.06); opacity:1; animation:fo .3s forwards; }
+  #sf.r { background:rgba(239,68,68,0.06); opacity:1; animation:fo .3s forwards; }
+  @keyframes fo { to{opacity:0} }
+
+  #overlay { position:absolute; inset:0; z-index:20; display:flex; flex-direction:column; align-items:center; justify-content:center; background:rgba(10,10,15,0.92); backdrop-filter:blur(20px); gap:18px; padding:24px; }
+  .ov-title { font-size:40px; font-weight:800; letter-spacing:-2px; }
+  .ov-sub { font-family:'DM Mono',monospace; font-size:12px; color:var(--muted); text-align:center; line-height:1.9; max-width:460px; }
+  .ov-sub strong { color:var(--accent); font-weight:500; }
+  .ov-stats { display:flex; gap:24px; padding:14px 24px; background:var(--surface); border:1px solid var(--border); border-radius:14px; }
+  .ov-s { text-align:center; }
+  .ov-v { font-family:'DM Mono',monospace; font-size:26px; color:var(--accent); }
+  .ov-l { font-family:'DM Mono',monospace; font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:1.5px; margin-top:3px; }
+  .start-btn { font-family:'Syne',sans-serif; font-size:16px; font-weight:700; padding:13px 40px; border-radius:12px; border:1px solid var(--accent); background:rgba(16,185,129,0.1); color:var(--accent); cursor:pointer; letter-spacing:1px; transition:all 0.2s; }
+  .start-btn:hover { background:rgba(16,185,129,0.2); box-shadow:0 0 28px -8px var(--accent); transform:scale(1.02); }
+</style>
+</head>
+<body>
+<div id="sf"></div>
+<header>
+  <a href="all.html" class="back-btn">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 3 L5 8 L10 13"/></svg>
+    Назад
+  </a>
+  <div class="header-title">Знаки на дороге</div>
+  <div class="hud">
+    <div class="hud-item"><div class="hud-val" id="hud-hold">0%</div><div class="hud-label">Удержание</div></div>
+    <div class="hud-item"><div class="hud-val" id="hud-passed">0</div><div class="hud-label">Проехало</div></div>
+    <div class="hud-item"><div class="hud-val" id="hud-s">0</div><div class="hud-label">Очки</div></div>
+  </div>
+</header>
+<div class="settings-bar">
+  <span class="settings-label">Траектория</span>
+  <div class="btn-group" id="path-btns">
+    <button class="btn active" data-path="mixed">Смешанная</button>
+    <button class="btn" data-path="side">Слева/справа</button>
+    <button class="btn" data-path="corner">По углам</button>
+    <button class="btn" data-path="straight">Прямо на тебя</button>
+  </div>
+  <div class="sep"></div>
+  <span class="settings-label">Скорость</span>
+  <div class="btn-group" id="speed-btns">
+    <button class="btn" data-spd="0.5">Медленно</button>
+    <button class="btn active" data-spd="1">Норма</button>
+    <button class="btn" data-spd="1.8">Быстро</button>
+  </div>
+  <div class="sep"></div>
+  <span class="settings-label">Сессия</span>
+  <div class="btn-group" id="dur-btns">
+    <button class="btn" data-dur="120">2 мин</button>
+    <button class="btn active" data-dur="300">5 мин</button>
+    <button class="btn" data-dur="600">10 мин</button>
+  </div>
+</div>
+
+<div class="main">
+  <canvas id="canvas"></canvas>
+  <div id="timer-ring">
+    <svg viewBox="0 0 56 56">
+      <circle class="ring-bg" cx="28" cy="28" r="22"/>
+      <circle class="ring-fill" id="ring-fill" cx="28" cy="28" r="22"/>
+      <text class="ring-text" id="ring-text" x="28" y="28">—</text>
+    </svg>
+  </div>
+  <div id="inst-bar">Держи <strong>курсор на знаке</strong> пока он движется и увеличивается — как знак у дороги</div>
+
+  <div id="overlay">
+    <div class="ov-title">Знаки на дороге</div>
+    <div class="ov-sub">
+      Один объект появляется вдали (маленький) и <strong>приближается</strong> —<br>
+      растёт и движется к краю экрана, как знак когда ты едешь мимо.<br><br>
+      Веди <strong>курсор мыши точно по объекту</strong> — не отставай.<br>
+      Это тренирует именно то что ты чувствуешь за рулём —<br>
+      непрерывную перестройку глаз при изменении расстояния.
+    </div>
+    <div id="ov-stats" style="display:none" class="ov-stats">
+      <div class="ov-s"><div class="ov-v" id="ov-hold">—</div><div class="ov-l">Удержание</div></div>
+      <div class="ov-s"><div class="ov-v" id="ov-passed">—</div><div class="ov-l">Проехало</div></div>
+      <div class="ov-s"><div class="ov-v" id="ov-score">—</div><div class="ov-l">Очки</div></div>
+    </div>
+    <button class="start-btn" id="start-btn">НАЧАТЬ</button>
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────
+// CONFIG
+// ─────────────────────────────────────────────
+let pathType   = 'mixed'; // mixed | side | corner | straight
+let speedMult  = 1.0;
+let sessionDur = 300;
+
+const canvas = document.getElementById('canvas');
+const ctx    = canvas.getContext('2d');
+let W, H;
+
+function resize() { W = canvas.width = canvas.offsetWidth; H = canvas.height = canvas.offsetHeight; }
+window.addEventListener('resize', resize);
+resize();
+
+// ─────────────────────────────────────────────
+// MOUSE TRACKING (proxy for gaze)
+// ─────────────────────────────────────────────
+let mouseX = 0, mouseY = 0, mouseActive = false;
+canvas.addEventListener('mousemove', e => {
+  const r = canvas.getBoundingClientRect();
+  mouseX = e.clientX - r.left; mouseY = e.clientY - r.top;
+  mouseActive = true;
+});
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  const r = canvas.getBoundingClientRect();
+  const t = e.touches[0];
+  mouseX = t.clientX - r.left; mouseY = t.clientY - r.top;
+  mouseActive = true;
+}, { passive:false });
+
+// ─────────────────────────────────────────────
+// SIGN OBJECT — single object, one "pass" at a time
+// Starts small near a horizon point, grows while moving
+// toward an exit edge/corner, then a new one spawns.
+// ─────────────────────────────────────────────
+let sign = null;
+
+function newSign() {
+  const horizonY = H * 0.42; // vanishing point height
+  let startX, endX, endY, startR, endR;
+
+  const variants = {
+    side:     () => Math.random() > 0.5 ? 'left' : 'right',
+    corner:   () => ['TL','TR','BL','BR'][Math.floor(Math.random()*4)],
+    straight: () => 'center',
+    mixed:    () => {
+      const opts = ['left','right','TL','TR','BL','BR','center'];
+      return opts[Math.floor(Math.random()*opts.length)];
+    }
+  };
+  const variant = variants[pathType]();
+
+  startX = W/2 + (Math.random()-0.5) * W * 0.15;
+  const startY = horizonY + (Math.random()-0.5) * H * 0.06;
+  startR = 6;
+
+  if (variant === 'left')   { endX = -60;      endY = H * (0.55 + Math.random()*0.35); endR = 70; }
+  else if (variant === 'right') { endX = W + 60; endY = H * (0.55 + Math.random()*0.35); endR = 70; }
+  else if (variant === 'TL') { endX = -60;    endY = -60;    endR = 60; }
+  else if (variant === 'TR') { endX = W + 60; endY = -60;    endR = 60; }
+  else if (variant === 'BL') { endX = -60;    endY = H + 60; endR = 75; }
+  else if (variant === 'BR') { endX = W + 60; endY = H + 60; endR = 75; }
+  else { endX = startX; endY = H * 0.9; endR = 90; } // straight at viewer
+
+  const shapes = ['sign', 'triangle', 'circle'];
+  sign = {
+    x0:startX, y0:startY, x1:endX, y1:endY, r0:startR, r1:endR,
+    progress: 0,
+    shape: shapes[Math.floor(Math.random()*shapes.length)],
+    color: ['#f59e0b','#00e5ff','#ec4899','#10b981'][Math.floor(Math.random()*4)],
+    x:startX, y:startY, r:startR,
+  };
+}
+
+function updateSign(dt) {
+  if (!sign) return;
+  // ease-in: slow start (far away), fast end (close/passing)
+  sign.progress += dt * 0.00035 * speedMult;
+  if (sign.progress >= 1) {
+    signPassed();
+    return;
+  }
+  const p = sign.progress;
+  const eased = p * p; // accelerate — mimics real approach perspective
+  sign.x = sign.x0 + (sign.x1 - sign.x0) * eased;
+  sign.y = sign.y0 + (sign.y1 - sign.y0) * eased;
+  sign.r = sign.r0 + (sign.r1 - sign.r0) * eased;
+}
+
+function drawSign() {
+  if (!sign) return;
+  const { x, y, r, shape, color } = sign;
+
+  ctx.save();
+  ctx.shadowColor = color; ctx.shadowBlur = 16;
+  ctx.strokeStyle = color; ctx.fillStyle = color;
+  ctx.lineWidth = Math.max(2, r*0.08);
+
+  if (shape === 'circle') {
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.stroke();
+    ctx.globalAlpha = 0.15; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.fill();
+    ctx.globalAlpha = 1;
+  } else if (shape === 'triangle') {
+    ctx.beginPath();
+    ctx.moveTo(x, y - r);
+    ctx.lineTo(x + r*0.87, y + r*0.5);
+    ctx.lineTo(x - r*0.87, y + r*0.5);
+    ctx.closePath(); ctx.stroke();
+    ctx.globalAlpha = 0.15; ctx.fill(); ctx.globalAlpha = 1;
+  } else { // sign — like road sign square with border
+    ctx.beginPath();
+    ctx.rect(x - r*0.75, y - r*0.75, r*1.5, r*1.5);
+    ctx.stroke();
+    ctx.globalAlpha = 0.15; ctx.fill(); ctx.globalAlpha = 1;
+  }
+  ctx.shadowBlur = 0;
+
+  // Center dot for precise tracking target
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(x, y, Math.max(2, r*0.06), 0, Math.PI*2); ctx.fill();
+
+  ctx.restore();
+}
+
+function signPassed() {
+  passedCount++;
+  document.getElementById('hud-passed').textContent = passedCount;
+  score += 20;
+  document.getElementById('hud-s').textContent = score;
+  flash('g');
+  setTimeout(newSign, 300 + Math.random()*500);
+  sign = null;
+}
+
+// ─────────────────────────────────────────────
+// TRACKING SCORE — how well cursor follows the sign
+// ─────────────────────────────────────────────
+let holdFrames = 0, totalFrames = 0;
+let holdPct = 0;
+
+function updateTracking() {
+  if (!sign || !mouseActive) return;
+  totalFrames++;
+  const dist = Math.hypot(mouseX - sign.x, mouseY - sign.y);
+  const tolerance = sign.r + 30; // generous tolerance around the object
+  if (dist < tolerance) {
+    holdFrames++;
+    if (totalFrames % 20 === 0) score += 1;
+  }
+  holdPct = totalFrames > 0 ? Math.round(holdFrames / totalFrames * 100) : 0;
+  document.getElementById('hud-hold').textContent = holdPct + '%';
+  document.getElementById('hud-s').textContent = score;
+}
+
+// ─────────────────────────────────────────────
+// GAME LOOP
+// ─────────────────────────────────────────────
+let isRunning=false, animId=null, lastT=0;
+let passedCount=0, score=0, startTime=null, timerInt=null;
+
+function startGame() {
+  isRunning=true; passedCount=0; score=0; holdFrames=0; totalFrames=0;
+  document.getElementById('overlay').style.display='none';
+  document.getElementById('ov-stats').style.display='none';
+  document.getElementById('hud-hold').textContent='0%';
+  document.getElementById('hud-passed').textContent=0;
+  document.getElementById('hud-s').textContent=0;
+  resize();
+  newSign();
+  startTime=Date.now();
+  timerInt=setInterval(tickTimer,100);
+  lastT = performance.now();
+  animId = requestAnimationFrame(loop);
+}
+
+function loop(now) {
+  if (!isRunning) return;
+  const dt = now - lastT; lastT = now;
+
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle = '#0a0a0f'; ctx.fillRect(0,0,W,H);
+
+  // Subtle road-perspective guide lines (horizon)
+  ctx.strokeStyle = 'rgba(85,85,112,0.12)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0, H*0.42); ctx.lineTo(W, H*0.42); ctx.stroke();
+
+  updateSign(dt);
+  drawSign();
+  updateTracking();
+
+  // Cursor indicator
+  if (mouseActive) {
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(mouseX, mouseY, 8, 0, Math.PI*2); ctx.stroke();
+  }
+
+  animId = requestAnimationFrame(loop);
+}
+
+function tickTimer() {
+  const el = (Date.now()-startTime)/1000;
+  const left = Math.max(0, sessionDur - el);
+  const pct = left / sessionDur;
+  document.getElementById('ring-fill').style.strokeDashoffset = 138*(1-pct);
+  document.getElementById('ring-text').textContent = Math.ceil(left)+'s';
+  if (left<=0) finishGame();
+}
+
+function finishGame() {
+  isRunning=false; clearInterval(timerInt); cancelAnimationFrame(animId);
+  ctx.clearRect(0,0,W,H);
+  document.getElementById('ov-hold').textContent = holdPct+'%';
+  document.getElementById('ov-passed').textContent = passedCount;
+  document.getElementById('ov-score').textContent = score;
+  document.getElementById('ov-stats').style.display='flex';
+  const ol = document.getElementById('overlay');
+  ol.querySelector('.ov-title').textContent='✓ Готово';
+  document.getElementById('ov-sub').innerHTML = `${passedCount} объектов проехало · удержание ${holdPct}%`;
+  document.getElementById('start-btn').textContent='ЕЩЁ РАЗ';
+  ol.style.display='flex';
+  saveStats();
+}
+
+function flash(cls){const el=document.getElementById('sf');el.className='';void el.offsetWidth;el.className=cls;}
+
+// ─────────────────────────────────────────────
+// SETTINGS
+// ─────────────────────────────────────────────
+document.getElementById('path-btns').addEventListener('click',e=>{const b=e.target.closest('[data-path]');if(!b)return;pathType=b.dataset.path;document.querySelectorAll('#path-btns .btn').forEach(x=>x.classList.remove('active'));b.classList.add('active');});
+document.getElementById('speed-btns').addEventListener('click',e=>{const b=e.target.closest('[data-spd]');if(!b)return;speedMult=parseFloat(b.dataset.spd);document.querySelectorAll('#speed-btns .btn').forEach(x=>x.classList.remove('active'));b.classList.add('active');});
+document.getElementById('dur-btns').addEventListener('click',e=>{const b=e.target.closest('[data-dur]');if(!b)return;sessionDur=parseInt(b.dataset.dur);document.querySelectorAll('#dur-btns .btn').forEach(x=>x.classList.remove('active'));b.classList.add('active');});
+document.getElementById('start-btn').addEventListener('click',startGame);
+
+function saveStats(){
+  const s=JSON.parse(localStorage.getItem('eyegym_stats')||'{}');
+  s.sessions=(s.sessions||0)+1;s.minutes=(s.minutes||0)+Math.round(sessionDur/60);
+  const today=new Date().toDateString();
+  if(s.today_date!==today){s.today_date=today;s.today_exercises=[];s.streak=(s.streak||0)+1;}
+  if(!s.today_exercises.includes('Знаки'))s.today_exercises.push('Знаки');
+  localStorage.setItem('eyegym_stats',JSON.stringify(s));
+}
+</script>
+</body>
+</html>

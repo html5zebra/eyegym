@@ -1,0 +1,1470 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="EyeGym">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-180.png">
+<link rel="manifest" href="manifest.json">
+<title>EyeGym — шлем</title>
+<style>
+  :root {
+    --bg: #f2f0ea; --surface: #ffffff; --line: #d8d4c8; --text: #1d1c19; --muted: #6b675d;
+    --accent: #1f5fbf; --accent-ink: #ffffff; --ok: #1d8a52; --warn: #b4441f;
+    color-scheme: light;
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #15171c; --surface: #1e2129; --line: #2f3440; --text: #eceae4; --muted: #9a978e;
+      --accent: #6aa3ff; --accent-ink: #0d1424; --ok: #4cc488; --warn: #ff8a5c;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #15171c; --surface: #1e2129; --line: #2f3440; --text: #eceae4; --muted: #9a978e;
+    --accent: #6aa3ff; --accent-ink: #0d1424; --ok: #4cc488; --warn: #ff8a5c;
+    color-scheme: dark;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
+    font-size: 16px; line-height: 1.5; -webkit-text-size-adjust: 100%;
+  }
+  .setup {
+    max-width: 560px; margin: 0 auto;
+    padding: 20px max(18px, env(safe-area-inset-left, 0px)) 40px max(18px, env(safe-area-inset-right, 0px));
+  }
+  .back { color: var(--muted); text-decoration: none; font-size: 15px; }
+  h1 { font-size: 28px; line-height: 1.15; font-weight: 700; letter-spacing: -0.02em; margin: 14px 0 6px; }
+  .lede { color: var(--muted); font-size: 15px; max-width: 46ch; }
+  section { border-top: 1px solid var(--line); padding: 18px 0; }
+  section:first-of-type { margin-top: 20px; }
+  h2 { font-size: 17px; font-weight: 600; margin-bottom: 4px; }
+  .hint { color: var(--muted); font-size: 14px; margin-bottom: 12px; }
+  .seg { display: flex; gap: 6px; flex-wrap: wrap; }
+  .seg button {
+    font: inherit; font-size: 15px; padding: 9px 14px; border-radius: 10px;
+    border: 1px solid var(--line); background: var(--surface); color: var(--text); cursor: pointer;
+  }
+  .seg button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .row { display: flex; align-items: center; gap: 12px; }
+  input[type=range] { flex: 1; accent-color: var(--accent); height: 32px; }
+  .val { font-variant-numeric: tabular-nums; font-weight: 600; min-width: 64px; text-align: right; }
+  .step { font: inherit; width: 44px; height: 44px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--text); font-size: 20px; }
+  .card-wrap { overflow-x: auto; padding: 8px 0; }
+  #card { border: 2px solid var(--accent); border-radius: 10px; background: color-mix(in srgb, var(--accent) 10%, transparent); }
+  details summary { cursor: pointer; color: var(--accent); font-size: 15px; }
+  details[open] summary { margin-bottom: 10px; }
+  .actions { display: flex; flex-direction: column; gap: 10px; padding-top: 22px; }
+  .primary, .secondary {
+    font: inherit; font-size: 17px; font-weight: 600; padding: 15px; border-radius: 14px; cursor: pointer;
+  }
+  .primary { background: var(--accent); color: var(--accent-ink); border: none; }
+  .secondary { background: transparent; color: var(--text); border: 1px solid var(--line); }
+  .note { color: var(--muted); font-size: 13px; margin-top: 10px; }
+  #results { display: none; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin: 14px 0; }
+  .stat { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+  .stat b { display: block; font-size: 24px; font-variant-numeric: tabular-nums; }
+  .stat span { color: var(--muted); font-size: 13px; }
+  .hist { list-style: none; font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .hist li { padding: 4px 0; border-bottom: 1px solid var(--line); }
+  button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+  /* Headset view — always pure black, edge to edge */
+  #vr { position: fixed; inset: 0; background: #000; display: none; touch-action: none; z-index: 10; }
+  #vr canvas { display: block; width: 100%; height: 100%; }
+  #rotate {
+    position: fixed; inset: 0; z-index: 11; display: none; background: #000; color: #ddd;
+    flex-direction: column; align-items: center; justify-content: center; gap: 18px; text-align: center;
+    padding: 24px; font-size: 17px;
+  }
+  #rotate .seg button { background: #222; color: #eee; border-color: #444; }
+  #marksCtl { position: absolute; left: 50%; bottom: max(10px, env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
+    display: none; gap: 8px; z-index: 12; }
+  #marksCtl button { font: inherit; font-size: 16px; min-width: 56px; height: 44px; padding: 0 12px; border-radius: 10px;
+    border: 1px solid #555; background: #1c1c1c; color: #eee; }
+  #marksCtl #marksDone { background: #2a5bd7; border-color: #2a5bd7; }
+  .prog-list { list-style: none; margin: 10px 0; }
+  .prog-list li { display: flex; align-items: center; gap: 6px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .prog-list .nm { flex: 1; font-size: 15px; }
+  .prog-list .mins { min-width: 52px; text-align: center; font-variant-numeric: tabular-nums; font-weight: 600; }
+  .mini { font: inherit; font-size: 15px; width: 36px; height: 36px; border-radius: 9px; border: 1px solid var(--line);
+    background: var(--surface); color: var(--text); cursor: pointer; }
+  .prog-name { font: inherit; font-size: 16px; width: 100%; padding: 9px 12px; border-radius: 10px;
+    border: 1px solid var(--line); background: var(--surface); color: var(--text); margin-top: 10px; }
+  .addlabel { color: var(--muted); font-size: 14px; margin: 8px 0 6px; }
+  .linkbtn { font: inherit; font-size: 14px; background: none; border: none; color: var(--warn); padding: 8px 0; cursor: pointer; }
+  #extra .seg { margin-top: 8px; }
+</style>
+</head>
+<body>
+<div class="setup" id="setup">
+  <a class="back" href="all.html">‹ Все упражнения EyeGym</a>
+  <h1>Тренировка в шлеме</h1>
+  <p class="lede" id="lede"></p>
+
+  <section>
+    <h2>Программа</h2>
+    <p class="hint">Последовательность упражнений, идут одно за другим прямо в шлеме, с паузой 5 секунд между ними.</p>
+    <div class="seg" id="progSel"></div>
+    <input class="prog-name" id="progName" maxlength="40" aria-label="Название программы">
+    <ul class="prog-list" id="progList"></ul>
+    <p class="addlabel">Добавить упражнение:</p>
+    <div class="seg" id="progAdd"></div>
+    <button class="linkbtn" id="progDel">Удалить эту программу</button>
+    <div class="actions" style="padding-top:12px">
+      <button class="primary" id="progRun">Запустить программу</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>Отдельное упражнение</h2>
+    <div class="seg" id="mode">
+      <button data-v="road">Дорога</button>
+      <button data-v="rds">Стерео-фигуры</button>
+      <button data-v="detect">Детектор подавления (тап)</button>
+      <button data-v="fusion">Фузионный резерв (тап)</button>
+      <button data-v="stream">Дихоптический поток</button>
+      <button data-v="loom">Приближение</button>
+      <button data-v="jump">Прыжки глубины</button>
+      <button data-v="eyes">Мышцы глаз</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>Слабый глаз</h2>
+    <p class="hint">Ему достаётся цель, сильному — помехи.</p>
+    <div class="seg" id="weak">
+      <button data-v="right">Правый</button>
+      <button data-v="left">Левый</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>Расстояние между линзами</h2>
+    <p class="hint">Измерь линейкой от центра одной линзы до центра другой. Центры картинок встанут ровно напротив линз.</p>
+    <div class="row">
+      <input type="range" id="lens" min="52" max="76" step="0.5" aria-label="Расстояние между линзами, мм">
+      <span class="val" id="lensVal"></span>
+    </div>
+    <details>
+      <summary>Проверить масштаб экрана по банковской карте</summary>
+      <p class="hint">Приложи карту к экрану. Подгоняй кнопками, пока рамка не совпадёт с картой по ширине. Делай это в том же месте, откуда запускаешь упражнение: так учтётся и масштаб страницы.</p>
+      <div class="card-wrap"><div id="card"></div></div>
+      <div class="row">
+        <button class="step" id="pxDown" aria-label="Уменьшить">−</button>
+        <span class="val" id="pxVal" style="text-align:center;flex:1"></span>
+        <button class="step" id="pxUp" aria-label="Увеличить">+</button>
+      </div>
+    </details>
+  </section>
+
+  <section>
+    <h2>Положение картинки</h2>
+    <p class="hint">Если верх или низ рамок обрезан, сдвинь картинку или уменьши её.</p>
+    <div class="row">
+      <span style="min-width:70px">Вверх/вниз</span>
+      <input type="range" id="voff" min="-30" max="30" step="1" aria-label="Сдвиг по вертикали, мм">
+      <span class="val" id="voffVal"></span>
+    </div>
+    <div class="row">
+      <span style="min-width:70px">Размер</span>
+      <input type="range" id="size" min="50" max="100" step="5" aria-label="Размер картинки, %">
+      <span class="val" id="sizeVal"></span>
+    </div>
+  </section>
+
+  <section id="balSec">
+    <h2>Контраст сильного глаза</h2>
+    <p class="hint">Чем ниже, тем больше работы достаётся слабому глазу. Подбери так, чтобы картинка ещё была цельной, и понемногу снижай от недели к неделе.</p>
+    <div class="row">
+      <input type="range" id="bal" min="20" max="100" step="5" aria-label="Контраст сильного глаза, %">
+      <span class="val" id="balVal"></span>
+    </div>
+  </section>
+
+  <section id="loomSec">
+    <h2>Скорость</h2>
+    <div class="seg" id="loomSpd">
+      <button data-v="slow">Медленно</button>
+      <button data-v="norm">Норма</button>
+      <button data-v="fast">Быстро</button>
+    </div>
+  </section>
+
+  <section id="durSec">
+    <h2>Длительность</h2>
+    <div class="seg" id="dur">
+      <button data-v="180">3 мин</button>
+      <button data-v="300">5 мин</button>
+      <button data-v="480">8 мин</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>Ответ внутри шлема</h2>
+    <p class="hint">Тап по экрану (если у шлема есть кнопка) и пробел с Bluetooth-клавиатуры работают всегда. Кивок использует датчик движения айфона.</p>
+    <div class="seg" id="nod">
+      <button data-v="1">Кивок включён</button>
+      <button data-v="0">Без кивка</button>
+    </div>
+  </section>
+
+  <div class="actions">
+    <button class="secondary" id="marksBtn">Метки центров: проверить линзы</button>
+    <button class="secondary" id="crossBtn">Проверка и замер креста, около 1 минуты</button>
+    <button class="primary" id="startBtn">Начать выбранное упражнение</button>
+    <p class="note">После старта есть 6 секунд, чтобы вставить телефон в шлем. Чтобы прервать, вынь телефон и поверни вертикально.</p>
+    <p class="note" id="modeNote"></p>
+    <p class="note" id="syncNote">Настройки сохраняются в этом браузере.</p>
+  </div>
+
+  <div id="results">
+    <section>
+      <h2 id="resTitle">Результат</h2>
+      <div class="stats" id="resStats"></div>
+      <div id="extra"></div>
+      <p class="hint" id="resText"></p>
+      <ul class="hist" id="hist"></ul>
+    </section>
+  </div>
+</div>
+
+<div id="vr"><canvas id="cv"></canvas>
+  <div id="marksCtl">
+    <button data-d="-1">−1</button><button data-d="-0.5">−0.5</button>
+    <button data-d="0.5">+0.5</button><button data-d="1">+1</button>
+    <button id="marksDone">Готово</button>
+  </div>
+</div>
+<div id="rotate">
+  <div id="rotMsg">Поверни телефон горизонтально</div>
+  <div class="seg" id="rotBtns">
+    <button id="rotFinish">Завершить сессию</button>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// SETTINGS (persisted per device)
+// ============================================================
+const KEY = 'eyegym_cardboard_v1';
+function load() {
+  try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) { return {}; }
+}
+// Saved twice: in this browser (always) and in the account when signed in (db),
+// so settings survive Safari clearing the page's storage.
+let dbRef = null, dbTimer = null, dbBusy = false, dbPending = false;
+function save() {
+  cfg.savedAt = Date.now();
+  try { localStorage.setItem(KEY, JSON.stringify(cfg)); } catch (e) {}
+  if (dbRef) { clearTimeout(dbTimer); dbTimer = setTimeout(pushDb, 1000); }
+}
+async function pushDb() {
+  if (!dbRef) return;
+  if (dbBusy) { dbPending = true; return; }
+  dbBusy = true;
+  try { await dbRef.set(JSON.parse(JSON.stringify(cfg))); setSync('ok'); }
+  catch (e) { setSync('fail'); }
+  dbBusy = false;
+  if (dbPending) { dbPending = false; pushDb(); }
+}
+function setSync(state) {
+  const el = document.getElementById('syncNote'); if (!el) return;
+  el.textContent = state === 'ok' ? 'Настройки сохраняются в твоём аккаунте Claude.'
+    : state === 'fail' ? 'Не удалось сохранить в аккаунт, сохранено в этом браузере.'
+    : (window.claude ? 'Настройки сохраняются только в этом браузере. Чтобы точно не терялись, войди в аккаунт (Sign in вверху страницы).'
+                     : 'Настройки сохраняются на этом устройстве.');
+}
+async function connectDb() {
+  try {
+    if (!window.claude || typeof window.claude.use !== 'function') { setSync('local'); return; }
+    const [db, user] = await Promise.all([window.claude.use('db'), window.claude.use('user')]);
+    if (!db || !user) { setSync('local'); return; }
+    const uid = await user.id();
+    if (!uid) { setSync('local'); return; }
+    const ref = db.doc('data/users/' + uid + '/settings');
+    const snap = await Promise.race([ref.get(), new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 10000))]);
+    dbRef = ref;
+    const remote = snap.exists ? JSON.parse(JSON.stringify(snap.data())) : null;
+    if (remote && (remote.savedAt || 0) > (cfg.savedAt || 0)) {
+      Object.assign(cfg, remote);
+      try { localStorage.setItem(KEY, JSON.stringify(cfg)); } catch (e) {}
+      refreshUI();
+      setSync('ok');
+    } else {
+      await pushDb();
+    }
+  } catch (e) { setSync('local'); }
+}
+const cfg = Object.assign({
+  weak: 'right', lensMM: 63, pxmm: 6.04, dur: 300, nod: 1, level: 4, history: [],
+  mode: 'detect', voffMM: 0, sizePct: 100, fusionHistory: [], crossHistory: [], strongPct: 60, loomSpeed: 'norm',
+  stereoHistory: [], progSel: 'daily', savedAt: 0,
+  programs: [{ id: 'daily', name: 'Ежедневная', items: [
+    { m: 'eyes', min: 2 }, { m: 'stream', min: 5 }, { m: 'loom', min: 3 }, { m: 'road', min: 3 }, { m: 'rds', min: 2 },
+  ] }],
+}, load());
+if (!Array.isArray(cfg.programs) || !cfg.programs.length) cfg.programs = [{ id: 'daily', name: 'Ежедневная', items: [{ m: 'eyes', min: 2 }] }];
+
+// ============================================================
+// SETUP UI
+// ============================================================
+const segPainters = [];
+function bindSeg(id, key, cast) {
+  const el = document.getElementById(id);
+  const paint = () => el.querySelectorAll('button').forEach(b =>
+    b.setAttribute('aria-pressed', String(cast(b.dataset.v) === cfg[key])));
+  segPainters.push(paint);
+  el.addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    cfg[key] = cast(b.dataset.v); save(); paint();
+  });
+  paint();
+}
+bindSeg('weak', 'weak', String);
+bindSeg('dur', 'dur', Number);
+bindSeg('nod', 'nod', Number);
+bindSeg('mode', 'mode', String);
+bindSeg('loomSpd', 'loomSpeed', String);
+const LEDE = {
+  detect: 'Оба глаза видят рамку и крестик в центре. Сильный глаз видит мерцающие полосы, слабый в случайный момент видит кольцо. Заметил кольцо — кивни или нажми.',
+  fusion: 'Оба глаза видят одну и ту же картинку, и она медленно разъезжается. Кивни, когда начнёт двоиться. Потом картинки съезжаются обратно — кивни, когда снова станет одна.',
+  stream: 'Без кнопок, просто смотри. По экрану плывут фигуры, но каждый глаз видит только свою часть кусочков. Целая картинка складывается, только когда работают оба глаза.',
+  loom: 'Без кнопок, просто следи взглядом. Знак летит издали к тебе и уходит в сторону, как у дороги. Глубина задана настоящим стерео, глаза сводятся по мере приближения.',
+  jump: 'Без кнопок, просто смотри в центр. Картинка каждые несколько секунд прыгает ближе или дальше — держи её одной, глаза перестраиваются.',
+};
+const PASSIVE = { stream: 1, loom: 1, jump: 1, eyes: 1, road: 1, rds: 1 };
+LEDE.road = 'Без кнопок. Едешь по дороге: разметка бежит навстречу, по сторонам проплывают столбики и знаки, всё в настоящем стерео. Смотри вперёд и по сторонам, как за рулём.';
+LEDE.rds = 'Без кнопок. Поле из случайных точек, внутри спрятана фигура — увидеть её можно только стерео, одним глазом её нет. В конце каждого уровня покажу, какая была фигура, а после сессии спрошу, до какого уровня ты её видел.';
+const MODE_NAMES = { eyes: 'Мышцы глаз', stream: 'Дихоптический поток', loom: 'Приближение', road: 'Дорога',
+  rds: 'Стерео-фигуры', jump: 'Прыжки глубины', detect: 'Детектор подавления', fusion: 'Фузионный резерв' };
+const PROG_MODES = ['eyes', 'stream', 'loom', 'road', 'rds', 'jump'];
+LEDE.eyes = 'Без кнопок, следи глазами за жёлтой точкой, голову держи неподвижно. Три фазы по кругу: восьмёрка, прыжки центр ↔ край, и движение по кругу с приближением-удалением.';
+function paintMode() {
+  document.getElementById('lede').textContent = LEDE[cfg.mode];
+  document.getElementById('durSec').style.display = cfg.mode === 'fusion' ? 'none' : '';
+  document.getElementById('balSec').style.display = PASSIVE[cfg.mode] ? '' : 'none';
+  document.getElementById('loomSec').style.display = (cfg.mode === 'loom' || cfg.mode === 'road') ? '' : 'none';
+  document.getElementById('modeNote').textContent = cfg.mode === 'fusion'
+    ? 'Одна сессия: 3 раза на сведение и 3 раза на разведение глаз, около 4 минут. Если вместо двоения одна из картинок пропадает — это подавление, тоже кивай.'
+    : '';
+}
+document.getElementById('mode').addEventListener('click', () => setTimeout(paintMode, 0));
+paintMode();
+
+const voff = document.getElementById('voff'), size = document.getElementById('size');
+voff.value = cfg.voffMM; size.value = cfg.sizePct;
+function paintPos() {
+  document.getElementById('voffVal').textContent = (cfg.voffMM > 0 ? '+' : '') + cfg.voffMM + ' мм';
+  document.getElementById('sizeVal').textContent = cfg.sizePct + '%';
+}
+voff.addEventListener('input', () => { cfg.voffMM = parseInt(voff.value); save(); paintPos(); });
+const bal = document.getElementById('bal');
+bal.value = cfg.strongPct;
+const paintBal = () => document.getElementById('balVal').textContent = cfg.strongPct + '%';
+bal.addEventListener('input', () => { cfg.strongPct = parseInt(bal.value); save(); paintBal(); });
+paintBal();
+size.addEventListener('input', () => { cfg.sizePct = parseInt(size.value); save(); paintPos(); });
+paintPos();
+
+const lens = document.getElementById('lens');
+lens.value = cfg.lensMM;
+const paintLens = () => document.getElementById('lensVal').textContent = cfg.lensMM.toFixed(1) + ' мм';
+lens.addEventListener('input', () => { cfg.lensMM = parseFloat(lens.value); save(); paintLens(); });
+paintLens();
+
+function paintCard() {
+  const c = document.getElementById('card');
+  c.style.width = (85.6 * cfg.pxmm) + 'px';
+  c.style.height = (53.98 * cfg.pxmm) + 'px';
+  document.getElementById('pxVal').textContent = cfg.pxmm.toFixed(2) + ' px/мм';
+}
+document.getElementById('pxDown').onclick = () => { cfg.pxmm = Math.max(3, cfg.pxmm - 0.02); save(); paintCard(); };
+document.getElementById('pxUp').onclick = () => { cfg.pxmm = Math.min(9, cfg.pxmm + 0.02); save(); paintCard(); };
+paintCard();
+
+// ---------- Program editor ----------
+function curProg() { return cfg.programs.find(p => p.id === cfg.progSel) || cfg.programs[0]; }
+function el(tag, props, text) { const e = document.createElement(tag); Object.assign(e, props || {}); if (text != null) e.textContent = text; return e; }
+function renderProg() {
+  const P = curProg();
+  const sel = document.getElementById('progSel'); sel.innerHTML = '';
+  cfg.programs.forEach(pr => {
+    const b = el('button', {}, pr.name || 'Без названия');
+    b.setAttribute('aria-pressed', String(pr.id === P.id));
+    b.onclick = () => { cfg.progSel = pr.id; save(); renderProg(); };
+    sel.appendChild(b);
+  });
+  const nb = el('button', {}, '+ Новая');
+  nb.onclick = () => {
+    const np = { id: 'p' + Date.now(), name: 'Моя программа', items: [{ m: 'eyes', min: 2 }] };
+    cfg.programs.push(np); cfg.progSel = np.id; save(); renderProg();
+  };
+  sel.appendChild(nb);
+
+  const nameIn = document.getElementById('progName');
+  nameIn.value = P.name;
+  // update labels in place; re-rendering here would swallow a tap that blurs the field
+  nameIn.oninput = () => {
+    P.name = nameIn.value; save();
+    const btn = [...sel.children].find(b => b.getAttribute('aria-pressed') === 'true');
+    if (btn) btn.textContent = P.name || 'Без названия';
+    paintRun();
+  };
+  nameIn.onchange = null;
+
+  const list = document.getElementById('progList'); list.innerHTML = '';
+  P.items.forEach((it, i) => {
+    const li = el('li');
+    li.appendChild(el('span', { className: 'nm' }, `${i + 1}. ${MODE_NAMES[it.m] || it.m}`));
+    const mk = (txt, label, fn) => { const b = el('button', { className: 'mini', title: label }, txt); b.setAttribute('aria-label', label); b.onclick = () => { fn(); save(); renderProg(); }; return b; };
+    li.appendChild(mk('−', 'Меньше минут', () => { it.min = Math.max(1, it.min - 1); }));
+    li.appendChild(el('span', { className: 'mins' }, it.min + ' мин'));
+    li.appendChild(mk('+', 'Больше минут', () => { it.min = Math.min(20, it.min + 1); }));
+    li.appendChild(mk('↑', 'Выше', () => { if (i > 0) [P.items[i - 1], P.items[i]] = [P.items[i], P.items[i - 1]]; }));
+    li.appendChild(mk('↓', 'Ниже', () => { if (i < P.items.length - 1) [P.items[i + 1], P.items[i]] = [P.items[i], P.items[i + 1]]; }));
+    li.appendChild(mk('×', 'Убрать', () => { P.items.splice(i, 1); }));
+    list.appendChild(li);
+  });
+  if (!P.items.length) list.appendChild(el('li', {}, 'Пока пусто — добавь упражнения ниже.'));
+
+  const add = document.getElementById('progAdd'); add.innerHTML = '';
+  PROG_MODES.forEach(m => {
+    const b = el('button', {}, MODE_NAMES[m]);
+    b.onclick = () => { P.items.push({ m, min: 2 }); save(); renderProg(); };
+    add.appendChild(b);
+  });
+  const del = document.getElementById('progDel');
+  del.style.display = cfg.programs.length > 1 ? '' : 'none';
+  del.onclick = () => {
+    if (!confirm(`Удалить программу «${P.name}»?`)) return;
+    cfg.programs = cfg.programs.filter(x => x.id !== P.id); cfg.progSel = cfg.programs[0].id; save(); renderProg();
+  };
+  paintRun();
+}
+function paintRun() {
+  const P = curProg();
+  const total = P.items.reduce((a, x) => a + x.min, 0);
+  const run = document.getElementById('progRun');
+  run.textContent = P.items.length ? `Запустить «${P.name || 'Без названия'}» · ${total} мин` : 'Добавь упражнения в программу';
+  run.disabled = !P.items.length;
+}
+renderProg();
+
+function refreshUI() {
+  segPainters.forEach(f => f());
+  lens.value = cfg.lensMM; paintLens();
+  voff.value = cfg.voffMM; size.value = cfg.sizePct; paintPos();
+  bal.value = cfg.strongPct; paintBal();
+  paintCard(); paintMode(); renderProg();
+}
+
+// ============================================================
+// HEADSET RENDERING
+// Left half of the screen = left eye, right half = right eye.
+// Each eye's picture is centred at ±(lens distance / 2) from the
+// screen centre and never crosses the midline.
+// ============================================================
+const vr = document.getElementById('vr');
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+let W = 0, H = 0;
+
+function resize() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 3);
+  W = cv.clientWidth; H = cv.clientHeight;
+  cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+window.addEventListener('resize', () => { if (S.active) { resize(); checkOrientation(); } });
+
+// nasalMM > 0: both pictures move toward the nose (eyes must converge);
+// nasalMM < 0: toward the temples (eyes must diverge).
+function eyeFrames(nasalMM = 0, reserveMM = 0) {
+  const sep = cfg.lensMM * cfg.pxmm;
+  const res = reserveMM * cfg.pxmm;
+  const gap = 7 * cfg.pxmm; // keep each eye's field at least 7 mm from the midline (14 mm between fields)
+  const fit = Math.min(sep / 2 - gap - res, H / 2 - 10, W / 2 - sep / 2 - 4 - res);
+  const b = Math.max(30, fit * cfg.sizePct / 100);
+  const cy = H / 2 + cfg.voffMM * cfg.pxmm;
+  const s = nasalMM * cfg.pxmm;
+  return {
+    left:  { cx: W / 2 - sep / 2 + s, cy, b },
+    right: { cx: W / 2 + sep / 2 - s, cy, b },
+  };
+}
+
+// Level → difficulty. Higher level = stronger noise in strong eye, fainter target in weak eye.
+const MAX_LEVEL = 24;
+const noiseOpacity = L => Math.min(0.97, 0.15 + 0.034 * L);
+const targetContrast = L => Math.max(0.28, 1 - 0.03 * L);
+
+function drawFrame(f, color) {
+  const { cx, cy, b } = f;
+  ctx.strokeStyle = color; ctx.lineWidth = 2;
+  ctx.strokeRect(cx - b, cy - b, 2 * b, 2 * b);
+  // corner ticks strengthen the fusion lock
+  const t = b * 0.12;
+  ctx.lineWidth = 3;
+  [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([sx, sy]) => {
+    const x = cx + sx * b, y = cy + sy * b;
+    ctx.beginPath(); ctx.moveTo(x, y - sy * t); ctx.lineTo(x, y); ctx.lineTo(x - sx * t, y); ctx.stroke();
+  });
+  // fixation cross (both eyes)
+  const c = Math.max(6, b * 0.05);
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(cx - c, cy); ctx.lineTo(cx + c, cy); ctx.moveTo(cx, cy - c); ctx.lineTo(cx, cy + c); ctx.stroke();
+}
+
+let stripeOff = 0, flick = 0;
+function drawNoise(f, opacity) {
+  const { cx, cy, b } = f;
+  ctx.save();
+  ctx.beginPath(); ctx.rect(cx - b + 2, cy - b + 2, 2 * b - 4, 2 * b - 4); ctx.clip();
+  const w = Math.max(8, b * 0.13), period = w * 2;
+  const op = opacity * (0.8 + 0.12 * Math.sin(flick * 3.7) + 0.08 * Math.sin(flick * 9.1 + 1.3));
+  ctx.translate(cx, cy); ctx.rotate(Math.PI / 4);
+  ctx.fillStyle = `rgba(255,255,255,${op})`;
+  const L = b * 1.5;
+  for (let x = -L - period + (stripeOff % period); x < L + period; x += period) ctx.fillRect(x, -L, w, 2 * L);
+  ctx.restore();
+}
+
+function drawTarget(f, pos, contrast, alpha) {
+  const { cx, cy, b } = f;
+  const r = b * 0.11;
+  const x = cx + pos.x * b, y = cy + pos.y * b;
+  const v = Math.round(255 * contrast);
+  ctx.strokeStyle = `rgba(${v},${v},${v},${alpha})`;
+  ctx.lineWidth = Math.max(3, r * 0.32);
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke();
+}
+
+function drawText(f, text, size) {
+  ctx.fillStyle = '#cfcfcf';
+  ctx.font = `600 ${size}px -apple-system, system-ui, sans-serif`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const lines = text.split('\n');
+  lines.forEach((ln, i) => ctx.fillText(ln, f.cx, f.cy + (i - (lines.length - 1) / 2) * size * 1.3));
+}
+
+// ---------- Fusion reserve exercise ----------
+const FZ = { OUT: 0.35, BACK: 0.35, HOME: 3, MAX: 12, REST_MS: 2500, FOCAL_MM: 42 };
+const FZ_SEQ = ['conv', 'div', 'conv', 'div', 'conv', 'div'];
+const toPD = mm => Math.round(2 * 100 * mm / FZ.FOCAL_MM); // both eyes, approx prism dioptres
+
+function drawLabel(f, text) {
+  ctx.fillStyle = '#d8d8d8';
+  ctx.font = `600 ${Math.max(12, f.b * 0.12)}px -apple-system, system-ui, sans-serif`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(text, f.cx, f.cy - f.b * 0.78);
+}
+
+// Identical picture for both eyes (this is what has to stay fused),
+// plus one small eye-specific mark per eye to reveal suppression.
+function drawFusionPicture(f, eye) {
+  const { cx, cy, b } = f;
+  ctx.strokeStyle = 'rgba(235,235,235,0.9)'; ctx.lineWidth = 2;
+  [0.2, 0.38, 0.56].forEach(k => { ctx.beginPath(); ctx.arc(cx, cy, b * k, 0, Math.PI * 2); ctx.stroke(); });
+  ctx.fillStyle = 'rgba(235,235,235,0.9)';
+  [[-0.5, -0.5], [0.5, -0.5], [-0.5, 0.5], [0.5, 0.5]].forEach(([x, y]) => {
+    ctx.fillRect(cx + x * b - b * 0.05, cy + y * b - b * 0.05, b * 0.1, b * 0.1);
+  });
+  ctx.fillStyle = '#ffd24a';
+  if (eye === 'left') { ctx.beginPath(); ctx.arc(cx - b * 0.75, cy + b * 0.72, b * 0.06, 0, Math.PI * 2); ctx.fill(); }
+  else { ctx.fillRect(cx + b * 0.69, cy + b * 0.66, b * 0.12, b * 0.12); }
+}
+
+function fusionFrame(now) {
+  const z = S.fz;
+  const dt = Math.min(0.1, (now - (z.lastT || now)) / 1000); z.lastT = now;
+  const dir = FZ_SEQ[z.i] === 'conv' ? 1 : -1;
+  if (z.phase === 'out') {
+    z.d += dir * FZ.OUT * dt;
+    if (Math.abs(z.d) >= FZ.MAX) { z.d = dir * FZ.MAX; z.brk = FZ.MAX; z.capped = true; z.phase = 'back'; }
+  } else if (z.phase === 'back') {
+    z.d -= dir * FZ.BACK * dt;
+    if (dir * z.d <= 0) { z.d = 0; recordFusion(0); }
+  } else if (z.phase === 'home') {
+    const step = FZ.HOME * dt;
+    z.d = Math.abs(z.d) <= step ? 0 : z.d - Math.sign(z.d) * step;
+    if (z.d === 0) { z.phase = 'rest'; z.restUntil = now + FZ.REST_MS; }
+  } else if (z.phase === 'rest' && now >= z.restUntil) {
+    z.i++;
+    if (z.i >= FZ_SEQ.length) { finish(); return; }
+    z.phase = 'out'; z.capped = false;
+  }
+
+  const F = eyeFrames(z.d, FZ.MAX);
+  const frameColor = now < S.flashUntil ? S.flash : 'rgba(230,230,230,0.85)';
+  drawFrame(F.left, frameColor); drawFrame(F.right, frameColor);
+  drawFusionPicture(F.left, 'left'); drawFusionPicture(F.right, 'right');
+  const label = z.phase === 'out' ? 'кивни, когда двоится'
+    : z.phase === 'back' ? 'кивни, когда снова одна'
+    : `отдых · ${Math.min(z.i + 1, FZ_SEQ.length)} из ${FZ_SEQ.length}`;
+  drawLabel(F.left, label); drawLabel(F.right, label);
+}
+
+function recordFusion(rec) {
+  const z = S.fz;
+  z.results[FZ_SEQ[z.i]].push({ brk: z.brk, rec, capped: z.capped });
+  z.phase = 'home';
+}
+
+// ============================================================
+// PASSIVE EXERCISES (no input needed)
+// Strong eye gets reduced contrast (cfg.strongPct), weak eye full contrast.
+// ============================================================
+const eyeAlpha = eye => (eye === cfg.weak ? 1 : cfg.strongPct / 100);
+const off = { scene: document.createElement('canvas'), mask: document.createElement('canvas'), tmp: document.createElement('canvas') };
+
+// ---- 1. Dichoptic stream: complementary masks ----
+function initStream(b) {
+  const n = 22;
+  S.st = {
+    shapes: Array.from({ length: n }, () => newShape(b, true)),
+    blobs: makeBlobs(), lastT: 0,
+  };
+}
+function newShape(b, anywhere) {
+  const hues = [38, 200, 330, 150, 265, 15];
+  const dir = Math.random() < 0.5 ? 1 : -1;
+  return {
+    x: anywhere ? Math.random() * 2 - 1 : -1.3 * dir, y: Math.random() * 1.8 - 0.9,
+    vx: dir * (0.05 + Math.random() * 0.12), vy: (Math.random() - 0.5) * 0.04,
+    r: 0.06 + Math.random() * 0.12, hue: hues[Math.floor(Math.random() * hues.length)],
+    kind: Math.floor(Math.random() * 3), rot: Math.random() * 6, vr: (Math.random() - 0.5) * 0.8,
+  };
+}
+function makeBlobs() {
+  // ~half the field covered by soft blobs; the other eye sees the complement
+  return Array.from({ length: 9 }, () => newBlob(true));
+}
+function newBlob(anywhere) {
+  const a = Math.random() * Math.PI * 2, sp = 0.06 + Math.random() * 0.08;
+  return {
+    x: anywhere ? Math.random() * 2 - 1 : -Math.cos(a) * 1.4, y: anywhere ? Math.random() * 2 - 1 : -Math.sin(a) * 1.4,
+    vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, r: 0.3 + Math.random() * 0.2,
+  };
+}
+function drawShapes(c, size, shapes) {
+  const h = size / 2;
+  c.clearRect(0, 0, size, size);
+  shapes.forEach(sh => {
+    const x = h + sh.x * h, y = h + sh.y * h, r = sh.r * h;
+    c.save(); c.translate(x, y); c.rotate(sh.rot);
+    c.fillStyle = `hsl(${sh.hue} 85% 62%)`; c.strokeStyle = `hsl(${sh.hue} 90% 80%)`; c.lineWidth = Math.max(2, r * 0.12);
+    c.beginPath();
+    if (sh.kind === 0) c.arc(0, 0, r, 0, Math.PI * 2);
+    else if (sh.kind === 1) c.rect(-r * 0.8, -r * 0.8, r * 1.6, r * 1.6);
+    else { for (let i = 0; i < 5; i++) { const a1 = i * 4 * Math.PI / 5 - Math.PI / 2, a2 = a1 + 2 * Math.PI / 5; c.lineTo(Math.cos(a1) * r, Math.sin(a1) * r); c.lineTo(Math.cos(a2) * r * 0.45, Math.sin(a2) * r * 0.45); } c.closePath(); }
+    c.fill(); c.stroke(); c.restore();
+  });
+}
+// Opaque blobs (hard edges): a point is either inside (left eye) or outside (right eye), never both.
+function drawMask(c, size, blobs) {
+  const h = size / 2;
+  c.clearRect(0, 0, size, size);
+  c.fillStyle = '#000';
+  blobs.forEach(o => { c.beginPath(); c.arc(h + o.x * h, h + o.y * h, o.r * h, 0, Math.PI * 2); c.fill(); });
+}
+function streamFrame(now) {
+  const F = eyeFrames();
+  const b = F.left.b, dpr = cv.width / W, size = Math.round(2 * b * dpr);
+  if (!S.st) initStream(b);
+  const st = S.st;
+  const dt = Math.min(0.1, (now - (st.lastT || now)) / 1000); st.lastT = now;
+  st.shapes.forEach((sh, i) => {
+    sh.x += sh.vx * dt; sh.y += sh.vy * dt; sh.rot += sh.vr * dt;
+    if (Math.abs(sh.x) > 1.35 || Math.abs(sh.y) > 1.2) st.shapes[i] = newShape(b, false);
+  });
+  st.blobs.forEach((o, i) => {                    // blobs drift, so the split keeps reshuffling
+    o.x += o.vx * dt; o.y += o.vy * dt;
+    if (Math.abs(o.x) > 1.5 || Math.abs(o.y) > 1.5) st.blobs[i] = newBlob(false);
+  });
+
+  [off.scene, off.mask, off.tmp].forEach(cn => { if (cn.width !== size) { cn.width = size; cn.height = size; } });
+  const sc = off.scene.getContext('2d'), mc = off.mask.getContext('2d'), tc = off.tmp.getContext('2d');
+  drawShapes(sc, size, st.shapes);
+  drawMask(mc, size, st.blobs);
+
+  [['left', F.left], ['right', F.right]].forEach(([eye, f]) => {
+    tc.globalCompositeOperation = 'source-over'; tc.clearRect(0, 0, size, size);
+    tc.drawImage(off.scene, 0, 0);
+    // left eye sees shapes inside the blobs, right eye sees them outside
+    tc.globalCompositeOperation = eye === 'left' ? 'destination-in' : 'destination-out';
+    tc.drawImage(off.mask, 0, 0);
+    ctx.save(); ctx.globalAlpha = eyeAlpha(eye);
+    ctx.beginPath(); ctx.rect(f.cx - f.b, f.cy - f.b, 2 * f.b, 2 * f.b); ctx.clip();
+    ctx.drawImage(off.tmp, f.cx - f.b, f.cy - f.b, 2 * f.b, 2 * f.b);
+    ctx.restore();
+  });
+  drawFrame(F.left, 'rgba(230,230,230,0.85)'); drawFrame(F.right, 'rgba(230,230,230,0.85)');
+}
+
+// ---- 2. Looming with real stereo disparity ----
+const LOOM = { NEAR_MM: 5, FAR_MM: -1.2, PAUSE_S: 0.5 };
+const LOOM_SPEED = { slow: 5, norm: 3.2, fast: 2 }; // seconds per approach
+function newLoom() {
+  const exits = [[-1, 0.2], [1, 0.2], [-1, -0.8], [1, -0.8], [-1, 0.9], [1, 0.9], [0, 1]];
+  const e = exits[Math.floor(Math.random() * exits.length)];
+  return { t: 0, ex: e[0] * 1.4, ey: e[1] * 1.4, sx: (Math.random() - 0.5) * 0.2, sy: -0.15 + (Math.random() - 0.5) * 0.1, kind: Math.floor(Math.random() * 3), pause: 0 };
+}
+function drawSign(f, x, y, r, kind, alpha) {
+  ctx.save(); ctx.globalAlpha = alpha;
+  ctx.lineWidth = Math.max(2, r * 0.14);
+  if (kind === 0) { ctx.strokeStyle = '#ff5a4f'; ctx.fillStyle = '#f2f2f2'; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
+  else if (kind === 1) { ctx.strokeStyle = '#ff5a4f'; ctx.fillStyle = '#f2f2f2'; ctx.beginPath(); ctx.moveTo(x, y - r); ctx.lineTo(x + r * 0.9, y + r * 0.6); ctx.lineTo(x - r * 0.9, y + r * 0.6); ctx.closePath(); ctx.fill(); ctx.stroke(); }
+  else { ctx.fillStyle = '#3a8bff'; ctx.strokeStyle = '#f2f2f2'; ctx.fillRect(x - r * 0.8, y - r * 0.8, r * 1.6, r * 1.6); ctx.strokeRect(x - r * 0.62, y - r * 0.62, r * 1.24, r * 1.24); }
+  ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(x, y, Math.max(1.5, r * 0.08), 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+function loomFrame(now) {
+  const F = eyeFrames();
+  if (!S.lm) S.lm = { cur: newLoom(), lastT: 0 };
+  const lm = S.lm;
+  const dt = Math.min(0.1, (now - (lm.lastT || now)) / 1000); lm.lastT = now;
+  const o = lm.cur;
+  if (o.pause > 0) {
+    o.pause -= dt;
+    if (o.pause <= 0) lm.cur = newLoom();
+    drawFrame(F.left, 'rgba(200,200,200,0.55)'); drawFrame(F.right, 'rgba(200,200,200,0.55)');
+    return; // empty gap between signs — the old sign is never redrawn
+  }
+  o.t += dt / (LOOM_SPEED[cfg.loomSpeed] || LOOM_SPEED.norm);
+  if (o.t >= 1) { o.pause = LOOM.PAUSE_S; drawFrame(F.left, 'rgba(200,200,200,0.55)'); drawFrame(F.right, 'rgba(200,200,200,0.55)'); return; }
+  const p = o.t * o.t;                                  // perspective: slow far away, fast when close
+  const nx = o.sx + (o.ex - o.sx) * p, ny = o.sy + (o.ey - o.sy) * p;
+  const dispMM = LOOM.FAR_MM + (LOOM.NEAR_MM - LOOM.FAR_MM) * p; // + = crossed = in front of the frame
+  drawFrame(F.left, 'rgba(200,200,200,0.55)'); drawFrame(F.right, 'rgba(200,200,200,0.55)');
+  [['left', F.left, 1], ['right', F.right, -1]].forEach(([eye, f, sgn]) => {
+    const r = f.b * (0.04 + 0.32 * p);
+    const x = f.cx + nx * f.b + sgn * dispMM * cfg.pxmm, y = f.cy + ny * f.b;
+    ctx.save(); ctx.beginPath(); ctx.rect(f.cx - f.b, f.cy - f.b, 2 * f.b, 2 * f.b); ctx.clip();
+    drawSign(f, x, y, r, o.kind, eyeAlpha(eye));
+    ctx.restore();
+  });
+}
+
+// ---- 3. Depth jumps (vergence facility) ----
+const JUMP = { NEAR_MM: 3.5, FAR_MM: -1.5, MIN_S: 2.2, MAX_S: 4 };
+function jumpFrame(now) {
+  if (!S.jp) S.jp = { near: false, next: now + 2500, cur: 0 };
+  const jp = S.jp;
+  if (now >= jp.next) { jp.near = !jp.near; jp.next = now + 1000 * (JUMP.MIN_S + Math.random() * (JUMP.MAX_S - JUMP.MIN_S)); }
+  jp.cur = jp.near ? JUMP.NEAR_MM : JUMP.FAR_MM;
+  const F = eyeFrames(jp.cur, Math.max(JUMP.NEAR_MM, -JUMP.FAR_MM));
+  drawFrame(F.left, 'rgba(230,230,230,0.85)'); drawFrame(F.right, 'rgba(230,230,230,0.85)');
+  [['left', F.left], ['right', F.right]].forEach(([eye, f]) => {
+    ctx.save(); ctx.globalAlpha = eyeAlpha(eye);
+    drawFusionPicture(f, eye);
+    ctx.restore();
+  });
+  const label = jp.near ? 'близко' : 'далеко';
+  drawLabel(F.left, label); drawLabel(F.right, label);
+}
+
+// ---- 4. Eye muscles: figure-8 pursuit, saccades, 3D pursuit with vergence ----
+const EYES_PHASES = [
+  { k: 'eight', s: 40, label: 'следи: восьмёрка' },
+  { k: 'sacc',  s: 25, label: 'прыгай взглядом за точкой' },
+  { k: 'd3',    s: 40, label: 'следи: по кругу и вглубь' },
+];
+const SACC_PTS = [[0, 0], [-0.62, 0], [0.62, 0], [0, -0.55], [0, 0.62], [-0.5, -0.5], [0.5, -0.5], [-0.5, 0.5], [0.5, 0.5]];
+function musclesFrame(now) {
+  if (!S.ms) S.ms = { start: now, sacc: { i: 0, next: now, center: false } };
+  const ms = S.ms;
+  const cycle = EYES_PHASES.reduce((a, p) => a + p.s, 0);
+  let tIn = ((now - ms.start) / 1000) % cycle, ph = EYES_PHASES[0];
+  for (const p of EYES_PHASES) { if (tIn < p.s) { ph = p; break; } tIn -= p.s; }
+  let x = 0, y = 0, disp = 0;
+  if (ph.k === 'eight') {
+    const w = 2 * Math.PI / 8; x = 0.72 * Math.sin(w * tIn); y = 0.42 * Math.sin(2 * w * tIn);
+  } else if (ph.k === 'sacc') {
+    if (now >= ms.sacc.next) {
+      ms.sacc.center = !ms.sacc.center;
+      ms.sacc.i = ms.sacc.center ? 0 : 1 + Math.floor(Math.random() * 8);
+      ms.sacc.next = now + 1100;
+    }
+    [x, y] = SACC_PTS[ms.sacc.i];
+  } else {
+    const w = 2 * Math.PI / 10;
+    x = 0.6 * Math.sin(w * tIn); y = 0.4 * Math.sin(1.3 * w * tIn);
+    disp = 1 + 3 * Math.sin(0.7 * w * tIn);   // mm per eye: −2 (behind) … +4 (in front)
+  }
+  const F = eyeFrames();
+  // faint grid, identical in both eyes: a stable fusion reference while the eyes move
+  ctx.strokeStyle = 'rgba(130,130,150,0.22)'; ctx.lineWidth = 1;
+  [F.left, F.right].forEach(f => {
+    for (let k = -0.75; k <= 0.76; k += 0.25) {
+      ctx.beginPath(); ctx.moveTo(f.cx + k * f.b, f.cy - f.b); ctx.lineTo(f.cx + k * f.b, f.cy + f.b); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(f.cx - f.b, f.cy + k * f.b); ctx.lineTo(f.cx + f.b, f.cy + k * f.b); ctx.stroke();
+    }
+  });
+  drawFrame(F.left, 'rgba(230,230,230,0.85)'); drawFrame(F.right, 'rgba(230,230,230,0.85)');
+  [['left', F.left, 1], ['right', F.right, -1]].forEach(([eye, f, sgn]) => {
+    const r = f.b * 0.07 * (1 + 0.08 * disp);
+    const px = f.cx + x * f.b + sgn * disp * cfg.pxmm, py = f.cy + y * f.b;
+    ctx.save(); ctx.globalAlpha = eyeAlpha(eye);
+    ctx.strokeStyle = '#ffd24a'; ctx.lineWidth = Math.max(2, r * 0.35);
+    ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(px, py, Math.max(1.5, r * 0.25), 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  });
+  drawLabel(F.left, ph.label); drawLabel(F.right, ph.label);
+  S.msDbg = { k: ph.k, x, y, disp };
+}
+
+// ---- 5. Random-dot stereo figures (visible only with stereo) ----
+const RDS = { LEVELS_DEV: [24, 12, 6, 3, 2, 1], LEVEL_S: 7, REVEAL_S: 1.8, REGEN_MS: 900, DOT_DEV: 2 };
+const RDS_SHAPES = [
+  ['круг', (x, y) => x * x + y * y < 1],
+  ['квадрат', (x, y) => Math.abs(x) < 0.85 && Math.abs(y) < 0.85],
+  ['треугольник', (x, y) => y > -0.95 && y < 0.75 && Math.abs(x) < (y + 0.95) * 0.6],
+  ['крест', (x, y) => (Math.abs(x) < 0.3 && Math.abs(y) < 1) || (Math.abs(y) < 0.3 && Math.abs(x) < 1)],
+];
+const rdsOff = { L: document.createElement('canvas'), R: document.createElement('canvas') };
+const rdsArcsec = (devPx) => {
+  const dpr = W ? cv.width / W : Math.min(window.devicePixelRatio || 1, 3);
+  return Math.round(devPx / (dpr * cfg.pxmm) / FZ.FOCAL_MM * 206265);
+};
+
+function rdsMask(N, shapeFn, sx, sy, scale) {
+  const m = new Uint8Array(N * N);
+  for (let y = 0; y < N; y++) {
+    const ny = ((y / N) * 2 - 1 - sy) / scale;
+    for (let x = 0; x < N; x++) m[y * N + x] = shapeFn(((x / N) * 2 - 1 - sx) / scale, ny) ? 1 : 0;
+  }
+  return m;
+}
+function rdsBuild(N, d, mask) {
+  const c = RDS.DOT_DEV, n = Math.ceil(N / c) + 1;
+  const base = new Uint8Array(n * n), extra = new Uint8Array(n * n);
+  for (let i = 0; i < base.length; i++) { base[i] = Math.random() < 0.5 ? 1 : 0; extra[i] = Math.random() < 0.5 ? 1 : 0; }
+  const Lp = new ImageData(N, N), Rp = new ImageData(N, N);
+  const l32 = new Uint32Array(Lp.data.buffer), r32 = new Uint32Array(Rp.data.buffer);
+  const ON = 0xffffffff, OFF = 0xff000000;
+  for (let y = 0; y < N; y++) {
+    const row = (y / c | 0) * n;
+    for (let x = 0; x < N; x++) { const v = base[row + (x / c | 0)] ? ON : OFF; l32[y * N + x] = v; r32[y * N + x] = v; }
+  }
+  // Right eye: the figure's dots shifted left by d → crossed disparity → the figure floats in front.
+  for (let y = 0; y < N; y++) {
+    const row = (y / c | 0) * n;
+    for (let x = 0; x < N; x++) {
+      const i = y * N + x;
+      if (mask[i] && x - d >= 0) r32[i - d] = l32[i];
+    }
+    for (let x = 0; x < N; x++) {
+      const i = y * N + x;
+      // strip uncovered by the shift gets fresh, uncorrelated dots
+      if (mask[i] && !(x + d < N && mask[i + d])) r32[i] = extra[row + (x / c | 0)] ? ON : OFF;
+    }
+  }
+  return [Lp, Rp];
+}
+function rdsFrame(now) {
+  const F = eyeFrames();
+  const dpr = cv.width / W, N = Math.round(2 * F.left.b * dpr);
+  if (!S.rd) S.rd = { t0: now, li: -1, lastGen: 0, N: 0, mask: null, shape: 0, seen: [] };
+  const rd = S.rd;
+  const el = (now - rd.t0) / 1000;
+  const li = Math.floor(el / RDS.LEVEL_S) % RDS.LEVELS_DEV.length;
+  const inLevel = el % RDS.LEVEL_S;
+  if (li !== rd.li || N !== rd.N) {
+    rd.li = li; rd.N = N;
+    rd.shape = Math.floor(Math.random() * RDS_SHAPES.length);
+    rd.mask = rdsMask(N, RDS_SHAPES[rd.shape][1], (Math.random() - 0.5) * 0.4, (Math.random() - 0.5) * 0.4, 0.42);
+    rd.lastGen = 0;
+    if (!rd.seen.includes(li)) rd.seen.push(li);
+  }
+  if (now - rd.lastGen > RDS.REGEN_MS) {
+    rd.lastGen = now;
+    const [Lp, Rp] = rdsBuild(N, RDS.LEVELS_DEV[li], rd.mask);
+    [[rdsOff.L, Lp], [rdsOff.R, Rp]].forEach(([cn, img]) => { if (cn.width !== N) { cn.width = N; cn.height = N; } cn.getContext('2d').putImageData(img, 0, 0); });
+  }
+  ctx.save(); ctx.imageSmoothingEnabled = false;
+  [['left', F.left, rdsOff.L], ['right', F.right, rdsOff.R]].forEach(([eye, f, cn]) => {
+    ctx.globalAlpha = eyeAlpha(eye);
+    ctx.drawImage(cn, f.cx - f.b, f.cy - f.b, 2 * f.b, 2 * f.b);
+  });
+  ctx.restore();
+  drawFrame(F.left, 'rgba(230,230,230,0.85)'); drawFrame(F.right, 'rgba(230,230,230,0.85)');
+  const sec = rdsArcsec(RDS.LEVELS_DEV[li]);
+  const label = inLevel > RDS.LEVEL_S - RDS.REVEAL_S
+    ? `был ${RDS_SHAPES[rd.shape][0]} · ${sec}″`
+    : `уровень ${li + 1}/${RDS.LEVELS_DEV.length}`;
+  [F.left, F.right].forEach(f => {
+    ctx.fillStyle = 'rgba(0,0,0,0.75)'; ctx.fillRect(f.cx - f.b * 0.85, f.cy - f.b * 0.9, f.b * 1.7, f.b * 0.24);
+  });
+  drawLabel(F.left, label); drawLabel(F.right, label);
+}
+
+// ---- 6. Road: continuous driving scene in true stereo ----
+// Off-axis projection with the lens focal length, so infinity has zero disparity (as with real eyes).
+const ROAD = { CAMY: 1.25, EYE: 0.045, ZMIN: 1.6, ZMAX: 140, SPEED: { slow: 11, norm: 19.4, fast: 27.8 } };
+function roadFrame(now) {
+  if (!S.rw) S.rw = { dist: 0, t: 0, lastT: 0, signs: [], nextSign: 25 };
+  const R = S.rw;
+  const dt = Math.min(0.1, (now - (R.lastT || now)) / 1000); R.lastT = now;
+  R.dist += (ROAD.SPEED[cfg.loomSpeed] || ROAD.SPEED.norm) * dt; R.t += dt;
+  const curv = 0.0012 * Math.sin(R.t * 0.13);
+  while (R.nextSign < R.dist + ROAD.ZMAX) {
+    R.signs.push({ z: R.nextSign, side: Math.random() < 0.5 ? -1 : 1, kind: Math.floor(Math.random() * 3) });
+    R.nextSign += 30 + Math.random() * 45;
+  }
+  R.signs = R.signs.filter(sg => sg.z - R.dist > ROAD.ZMIN);
+  const F = eyeFrames(), Fp = FZ.FOCAL_MM * cfg.pxmm;
+  const zs = []; for (let z = ROAD.ZMIN; z < ROAD.ZMAX; z *= 1.07) zs.push(z); zs.push(ROAD.ZMAX);
+
+  [['left', F.left, -1], ['right', F.right, 1]].forEach(([eye, f, sg]) => {
+    const ex = sg * ROAD.EYE;
+    const P = (X, Y, Z) => ({ x: f.cx + Fp * (X + curv * Z * Z - ex) / Z, y: f.cy - Fp * (Y - ROAD.CAMY) / Z, k: Fp / Z });
+    ctx.save();
+    ctx.beginPath(); ctx.rect(f.cx - f.b, f.cy - f.b, 2 * f.b, 2 * f.b); ctx.clip();
+    ctx.globalAlpha = eyeAlpha(eye);
+    ctx.fillStyle = '#0c0e12'; ctx.fillRect(f.cx - f.b, f.cy, 2 * f.b, f.b);     // ground
+    // road surface
+    ctx.fillStyle = '#20242b'; ctx.beginPath();
+    zs.forEach((z, i) => { const q = P(-3.6, 0, z); i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y); });
+    zs.slice().reverse().forEach(z => { const q = P(3.6, 0, z); ctx.lineTo(q.x, q.y); });
+    ctx.closePath(); ctx.fill();
+    // edge lines
+    ctx.strokeStyle = '#d9d9d9'; ctx.lineWidth = 2;
+    [-3.35, 3.35].forEach(X => { ctx.beginPath(); zs.forEach((z, i) => { const q = P(X, 0, z); i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y); }); ctx.stroke(); });
+    // centre dashes
+    ctx.fillStyle = '#f0f0f0';
+    for (let z0 = 12 - (R.dist % 12) - 12; z0 < ROAD.ZMAX; z0 += 12) {
+      const a = Math.max(z0, ROAD.ZMIN), b = Math.min(z0 + 4, ROAD.ZMAX); if (b <= a) continue;
+      const p1 = P(-0.09, 0, a), p2 = P(0.09, 0, a), p3 = P(0.09, 0, b), p4 = P(-0.09, 0, b);
+      ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.lineTo(p3.x, p3.y); ctx.lineTo(p4.x, p4.y); ctx.closePath(); ctx.fill();
+    }
+    // roadside posts and signs, far → near
+    const objs = [];
+    for (let z0 = 25 - (R.dist % 25); z0 < ROAD.ZMAX; z0 += 25) { if (z0 > ROAD.ZMIN) { objs.push({ t: 'post', X: -4.6, z: z0 }); objs.push({ t: 'post', X: 4.6, z: z0 }); } }
+    R.signs.forEach(sn => { const z = sn.z - R.dist; if (z > ROAD.ZMIN && z < ROAD.ZMAX) objs.push({ t: 'sign', X: sn.side * 5.3, z, kind: sn.kind }); });
+    objs.sort((a, b) => b.z - a.z).forEach(o => {
+      if (o.t === 'post') {
+        const b0 = P(o.X, 0, o.z), t0 = P(o.X, 1.1, o.z), w = Math.max(1, 0.12 * b0.k);
+        ctx.fillStyle = '#cfcfcf'; ctx.fillRect(b0.x - w / 2, t0.y, w, b0.y - t0.y);
+        ctx.fillStyle = '#ff8a2a'; ctx.fillRect(b0.x - w / 2, t0.y, w, Math.max(1, 0.15 * b0.k));
+      } else {
+        const b0 = P(o.X, 0, o.z), t0 = P(o.X, 2.0, o.z), sc = P(o.X, 2.45, o.z), w = Math.max(1, 0.08 * b0.k);
+        ctx.fillStyle = '#8a8f98'; ctx.fillRect(b0.x - w / 2, t0.y, w, b0.y - t0.y);
+        drawSign(f, sc.x, sc.y, Math.max(2, 0.45 * sc.k), o.kind, eyeAlpha(eye));
+      }
+    });
+    ctx.restore();
+  });
+  drawFrame(F.left, 'rgba(200,200,200,0.5)'); drawFrame(F.right, 'rgba(200,200,200,0.5)');
+}
+
+// ---------- Lens-centre marks (checked from outside the headset) ----------
+function marksFrame() {
+  const F = eyeFrames();
+  const r10 = 10 * cfg.pxmm;
+  ctx.strokeStyle = 'rgba(120,120,120,0.6)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(W / 2, 0); ctx.lineTo(W / 2, H); ctx.stroke();
+  [['L', F.left], ['R', F.right]].forEach(([n, f]) => {
+    ctx.strokeStyle = 'rgba(230,230,230,0.5)'; ctx.lineWidth = 1;
+    ctx.strokeRect(f.cx - f.b, f.cy - f.b, 2 * f.b, 2 * f.b);
+    ctx.strokeStyle = '#ffd24a'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(f.cx, f.cy, r10, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(f.cx, f.cy, 3, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(f.cx - r10 * 1.6, f.cy); ctx.lineTo(f.cx + r10 * 1.6, f.cy);
+    ctx.moveTo(f.cx, f.cy - r10 * 1.6); ctx.lineTo(f.cx, f.cy + r10 * 1.6);
+    ctx.stroke();
+    ctx.fillStyle = '#ddd'; ctx.font = '600 14px -apple-system, system-ui, sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText(`центр ${n}`, f.cx, f.cy + r10 * 1.75);
+  });
+  ctx.fillStyle = '#aaa'; ctx.font = '13px -apple-system, system-ui, sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  ctx.fillText(`между центрами ${cfg.lensMM.toFixed(1)} мм · кружок Ø20 мм`, W / 2, 8);
+}
+
+// ---------- Cross check with measurement ----------
+// Frames stay fixed (fused); only one eye's line moves inside its frame.
+// h-steps: left eye's vertical line sweeps horizontally.
+// v-steps: right eye's horizontal line sweeps vertically.
+const CX_SEQ = [{ k: 'h', from: -1 }, { k: 'v', from: -1 }, { k: 'h', from: 1 }, { k: 'v', from: 1 }];
+const CX_SWEEP_S = 9;
+const CX_FINAL_MS = 6000;
+
+function crossFrame(now) {
+  const c = S.cx;
+  const F = eyeFrames();
+  const l = F.left, r = F.right, R = l.b * 0.8;
+  const dt = Math.min(0.1, (now - (c.lastT || now)) / 1000); c.lastT = now;
+  const avg = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0;
+  let hx = 0, vy = 0, label;
+  if (c.step < CX_SEQ.length) {
+    const st = CX_SEQ[c.step];
+    c.u += c.dir * dt * 2 / CX_SWEEP_S;
+    if (c.u > 1) { c.u = 1; c.dir = -1; }
+    if (c.u < -1) { c.u = -1; c.dir = 1; }
+    if (st.k === 'h') { hx = c.u * R; label = 'кивни: вертикальная по центру'; }
+    else { vy = c.u * R; label = 'кивни: горизонтальная по центру'; }
+  } else {
+    hx = avg(c.h) * cfg.pxmm; vy = avg(c.v) * cfg.pxmm;
+    label = 'с поправкой: крест ровный?';
+    if (now >= c.finalUntil) { finish(); return; }
+  }
+  const frameColor = now < S.flashUntil ? S.flash : 'rgba(230,230,230,0.85)';
+  drawFrame(l, frameColor); drawFrame(r, frameColor);
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(l.cx + hx - 3, l.cy - l.b * 0.55, 6, l.b * 1.1);
+  ctx.fillRect(r.cx - r.b * 0.55, r.cy + vy - 3, r.b * 1.1, 6);
+  drawLabel(l, label); drawLabel(r, label);
+  c.cur = { hx, vy };
+}
+
+function crossRespond(now) {
+  const c = S.cx;
+  if (c.step >= CX_SEQ.length) return;
+  const st = CX_SEQ[c.step];
+  c[st.k].push((st.k === 'h' ? c.cur.hx : c.cur.vy) / cfg.pxmm);
+  feedback('#36c47a', now);
+  c.step++;
+  if (c.step < CX_SEQ.length) { c.u = CX_SEQ[c.step].from; c.dir = -CX_SEQ[c.step].from; }
+  else c.finalUntil = now + CX_FINAL_MS;
+}
+
+// ============================================================
+// SESSION STATE
+// ============================================================
+const S = {
+  active: false, mode: 'train', // train | cross
+  t0: 0, countdownEnd: 0, endAt: 0, paused: false, pauseStart: 0,
+  phase: 'wait', nextOnset: 0, showUntil: 0, graceUntil: 0, responded: false,
+  pos: { x: 0, y: 0 },
+  level: 0, streak: 0, hits: 0, misses: 0, fa: 0, maxLevel: 0,
+  flash: null, flashUntil: 0,
+};
+window.S = S; // exposed for testing
+
+const SHOW_MS = 1200, GRACE_MS = 450;
+
+function scheduleNext(now) {
+  S.phase = 'wait';
+  S.nextOnset = now + 1300 + Math.random() * 2200;
+  S.responded = false;
+}
+
+function placeTarget() {
+  // anywhere in the box except the central area, so the weak eye has to look peripherally
+  let x, y;
+  do { x = Math.random() * 1.4 - 0.7; y = Math.random() * 1.4 - 0.7; } while (Math.hypot(x, y) < 0.3);
+  S.pos = { x, y };
+}
+
+function respond() {
+  if (!S.active || S.paused) return;
+  const now = performance.now();
+  if (now < S.countdownEnd) return;
+  if (S.mode === 'marks') return;
+  if (S.mode === 'cross') { crossRespond(now); return; }
+  if (S.mode === 'fusion') {
+    const z = S.fz;
+    if (z.phase === 'out') { z.brk = Math.abs(z.d); z.phase = 'back'; feedback('#e0583a', now); }
+    else if (z.phase === 'back') { recordFusion(Math.abs(z.d)); feedback('#36c47a', now); }
+    return;
+  }
+  if (S.mode !== 'train') return;
+  if ((S.phase === 'show' || S.phase === 'grace') && !S.responded) {
+    S.responded = true; S.hits++; S.streak++;
+    if (S.streak >= 2) { S.level = Math.min(MAX_LEVEL, S.level + 1); S.streak = 0; }
+    S.maxLevel = Math.max(S.maxLevel, S.level);
+    feedback('#36c47a', now);
+    S.phase = 'grace'; S.graceUntil = now; // close the window
+  } else if (S.phase === 'wait') {
+    S.fa++;
+    feedback('#e0583a', now);
+  }
+}
+
+let audio = null;
+function unlockAudio() {
+  try {
+    if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)();
+    if (audio.state === 'suspended') audio.resume();
+  } catch (e) { audio = null; }
+}
+function beep(freq, ms) {
+  if (!audio) return;
+  try {
+    const o = audio.createOscillator(), g = audio.createGain();
+    o.frequency.value = freq; o.type = 'sine';
+    g.gain.setValueAtTime(0.0001, audio.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.25, audio.currentTime + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime + ms / 1000);
+    o.connect(g); g.connect(audio.destination);
+    o.start(); o.stop(audio.currentTime + ms / 1000 + 0.02);
+  } catch (e) {}
+}
+function feedback(color, now) {
+  S.flash = color; S.flashUntil = now + 350;
+  beep(color === '#e0583a' ? 330 : 880, 120);
+}
+
+function frame(now) {
+  if (!S.active) return;
+  requestAnimationFrame(frame);
+  if (S.paused) return;
+
+  stripeOff += 0.9; flick += 0.05;
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+  const F = eyeFrames();
+  const strong = cfg.weak === 'right' ? F.left : F.right;
+  const weak   = cfg.weak === 'right' ? F.right : F.left;
+  const frameColor = now < S.flashUntil ? S.flash : 'rgba(230,230,230,0.85)';
+
+  // countdown: identical in both eyes
+  if (now < S.countdownEnd) {
+    const s = Math.ceil((S.countdownEnd - now) / 1000);
+    const first = S.prog ? `\nпервое: ${MODE_NAMES[S.prog.items[0].m]}` : '';
+    [F.left, F.right].forEach(f => { drawFrame(f, 'rgba(230,230,230,0.6)'); drawText(f, `Вставь в шлем\n${s}${first}`, Math.max(14, f.b * 0.12)); });
+    return;
+  }
+  if (S.prog) {
+    const P = S.prog;
+    if (P.idx < 0) progNext(now, true);
+    if (!S.active) return;
+    if (now < P.transUntil) {
+      const it = P.items[P.idx];
+      [F.left, F.right].forEach(f => { drawFrame(f, 'rgba(230,230,230,0.6)'); drawText(f, `Дальше:\n${MODE_NAMES[it.m]}\n${it.min} мин`, Math.max(14, f.b * 0.12)); });
+      return;
+    }
+    if (now >= P.itemEnd) { progNext(now, false); return; }
+  }
+  if (now >= S.endAt) { finish(); return; }
+  if (S.mode === 'fusion') { fusionFrame(now); return; }
+
+  if (S.mode === 'marks') { marksFrame(); return; }
+  if (S.mode === 'stream') { streamFrame(now); return; }
+  if (S.mode === 'loom') { loomFrame(now); return; }
+  if (S.mode === 'jump') { jumpFrame(now); return; }
+  if (S.mode === 'eyes') { musclesFrame(now); return; }
+  if (S.mode === 'road') { roadFrame(now); return; }
+  if (S.mode === 'rds') { rdsFrame(now); return; }
+  if (S.mode === 'cross') { crossFrame(now); return; }
+
+  // --- training trial state machine ---
+  if (S.phase === 'wait' && now >= S.nextOnset) {
+    placeTarget(); S.phase = 'show'; S.showUntil = now + SHOW_MS; S.graceUntil = S.showUntil + GRACE_MS;
+  }
+  if (S.phase === 'show' && now >= S.showUntil) S.phase = 'grace';
+  if (S.phase === 'grace' && now >= S.graceUntil) {
+    if (!S.responded) { S.misses++; S.streak = 0; S.level = Math.max(0, S.level - 1); }
+    scheduleNext(now);
+  }
+
+  drawFrame(F.left, frameColor);
+  drawFrame(F.right, frameColor);
+  drawNoise(strong, noiseOpacity(S.level));
+  if (S.phase === 'show') {
+    const into = now - (S.showUntil - SHOW_MS);
+    const out = S.showUntil - now;
+    const a = Math.min(1, into / 150, out / 150);
+    drawTarget(weak, S.pos, targetContrast(S.level), a);
+  }
+}
+
+// ============================================================
+// INPUT
+// ============================================================
+cv.addEventListener('pointerdown', e => { e.preventDefault(); respond(); });
+document.addEventListener('keydown', e => {
+  if (!S.active) return;
+  if (e.code === 'Space' || e.code === 'Enter') { e.preventDefault(); respond(); }
+  if (e.code === 'Escape') finish();
+});
+let lastNod = 0;
+function onMotion(e) {
+  if (!cfg.nod || !S.active) return;
+  const r = e.rotationRate; if (!r) return;
+  if (Math.abs(r.alpha || 0) + Math.abs(r.beta || 0) + Math.abs(r.gamma || 0) > 0.01) S.motionEvents = (S.motionEvents || 0) + 1;
+  const m = Math.max(Math.abs(r.alpha || 0), Math.abs(r.beta || 0), Math.abs(r.gamma || 0));
+  const now = performance.now();
+  if (m > 120 && now - lastNod > 800) { lastNod = now; respond(); }
+}
+
+async function enableMotion() {
+  if (!cfg.nod) return;
+  try {
+    if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+      const res = await DeviceMotionEvent.requestPermission();
+      if (res !== 'granted') return;
+    }
+    window.addEventListener('devicemotion', onMotion);
+  } catch (e) { /* sensors unavailable here; tap and keyboard still work */ }
+}
+
+let wakeLock = null;
+async function keepAwake() {
+  try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {}
+}
+
+// ============================================================
+// ORIENTATION / PAUSE
+// ============================================================
+const rot = document.getElementById('rotate');
+function checkOrientation() {
+  const portrait = window.innerHeight > window.innerWidth;
+  if (portrait && !S.paused) {
+    S.paused = true; S.pauseStart = performance.now();
+    document.getElementById('rotMsg').textContent = S.countdownEnd && performance.now() > S.countdownEnd
+      ? 'Пауза. Поверни телефон горизонтально, чтобы продолжить.'
+      : 'Поверни телефон горизонтально';
+    rot.style.display = 'flex';
+  } else if (!portrait && S.paused) {
+    const d = performance.now() - S.pauseStart;
+    S.endAt += d; S.nextOnset += d; S.showUntil += d; S.graceUntil += d; S.countdownEnd += d;
+    if (S.fz) { S.fz.restUntil += d; S.fz.lastT = performance.now(); }
+    if (S.cx) { S.cx.finalUntil += d; S.cx.lastT = performance.now(); }
+    if (S.ms) { S.ms.start += d; S.ms.sacc.next += d; }
+    if (S.rd) S.rd.t0 += d;
+    if (S.prog) { S.prog.transUntil += d; S.prog.itemEnd += d; }
+    S.paused = false; rot.style.display = 'none';
+  }
+}
+document.getElementById('rotFinish').onclick = () => finish();
+
+// ============================================================
+// START / FINISH
+// ============================================================
+function progNext(now, first) {
+  const P = S.prog;
+  P.idx++;
+  if (P.idx >= P.items.length) { finish(); return; }
+  if (!first) beep(660, 150);
+  const it = P.items[P.idx];
+  S.mode = it.m; S.st = null; S.lm = null; S.jp = null; S.ms = null; S.rd = null; S.rw = null;
+  P.transUntil = first ? now : now + 5000;
+  P.itemEnd = P.transUntil + it.min * 60000;
+  P.done = P.idx;
+}
+
+async function start(mode) {
+  unlockAudio();
+  await enableMotion();
+  S.motionEvents = 0; S.st = null; S.lm = null; S.jp = null; S.ms = null; S.rd = null; S.rw = null;
+  S.prog = mode === 'program'
+    ? { items: curProg().items.map(x => ({ ...x })), idx: -1, transUntil: 0, itemEnd: 0, done: -1, t0: 0 }
+    : null;
+  keepAwake();
+  Object.assign(S, {
+    active: true, mode, paused: false, level: cfg.level || 0, streak: 0,
+    hits: 0, misses: 0, fa: 0, maxLevel: cfg.level || 0, flashUntil: 0,
+  });
+  document.getElementById('setup').style.display = 'none';
+  vr.style.display = 'block';
+  resize();
+  const now = performance.now();
+  S.countdownEnd = now + (mode === 'marks' ? 0 : 6000);
+  S.endAt = (mode === 'fusion' || mode === 'cross' || mode === 'marks' || mode === 'program') ? Infinity : S.countdownEnd + cfg.dur * 1000;
+  document.getElementById('marksCtl').style.display = mode === 'marks' ? 'flex' : 'none';
+  S.cx = mode === 'cross'
+    ? { step: 0, u: CX_SEQ[0].from, dir: -CX_SEQ[0].from, h: [], v: [], lastT: 0, finalUntil: Infinity, cur: { hx: 0, vy: 0 } }
+    : null;
+  S.fz = mode === 'fusion'
+    ? { i: 0, phase: 'out', d: 0, brk: 0, capped: false, lastT: 0, restUntil: 0, results: { conv: [], div: [] } }
+    : null;
+  scheduleNext(S.countdownEnd);
+  checkOrientation();
+  requestAnimationFrame(frame);
+}
+
+function finish() {
+  if (!S.active) return;
+  S.active = false;
+  vr.style.display = 'none'; rot.style.display = 'none';
+  document.getElementById('setup').style.display = 'block';
+  try { wakeLock && wakeLock.release(); } catch (e) {}
+  window.removeEventListener('devicemotion', onMotion);
+  document.getElementById('marksCtl').style.display = 'none';
+  document.getElementById('extra').innerHTML = '';
+  if (S.mode === 'marks' && !S.prog) return;
+
+  const res = document.getElementById('results');
+  res.style.display = 'block';
+  const NAMES = MODE_NAMES;
+  if (S.prog) {
+    const P = S.prog, all = P.idx >= P.items.length;
+    const doneItems = P.items.slice(0, all ? P.items.length : Math.max(0, P.idx));
+    const mins = doneItems.reduce((a, x) => a + x.min, 0);
+    document.getElementById('resTitle').textContent = all ? 'Программа пройдена' : 'Программа прервана';
+    document.getElementById('resStats').innerHTML = `
+      <div class="stat"><b>${mins} мин</b><span>выполнено полностью</span></div>
+      <div class="stat"><b>${doneItems.length} из ${P.items.length}</b><span>упражнений</span></div>`;
+    document.getElementById('resText').textContent = P.items.map((x, i) =>
+      `${i < doneItems.length ? '✓' : (i === P.idx ? '◐' : '·')} ${NAMES[x.m]} — ${x.min} мин`).join('   ');
+    document.getElementById('hist').innerHTML = '';
+    if (P.items.some((x, i) => x.m === 'rds' && i <= P.idx)) rdsAsk();
+    res.scrollIntoView({ behavior: 'smooth' });
+    saveGlobalStats(mins);
+    return;
+  }
+  if (S.mode === 'rds') {
+    document.getElementById('resTitle').textContent = NAMES.rds;
+    document.getElementById('resStats').innerHTML = '';
+    document.getElementById('resText').textContent = 'Отметь самый мелкий уровень, на котором фигура была видна (по подписи «это был …» в конце уровня).';
+    document.getElementById('hist').innerHTML = '';
+    rdsAsk();
+    res.scrollIntoView({ behavior: 'smooth' });
+    saveGlobalStats();
+    return;
+  }
+  if (PASSIVE[S.mode]) {
+    const mins = Math.max(0, Math.round((Math.min(performance.now(), S.endAt) - S.countdownEnd) / 60000));
+    document.getElementById('resTitle').textContent = NAMES[S.mode];
+    document.getElementById('resStats').innerHTML = `
+      <div class="stat"><b>${mins} мин</b><span>время упражнения</span></div>
+      <div class="stat"><b>${cfg.strongPct}%</b><span>контраст сильного глаза</span></div>`;
+    document.getElementById('resText').textContent =
+      'Если картинка всё время была цельной и не распадалась, в следующий раз снизь контраст сильного глаза на 5%. Если распадалась или половина пропадала — подними на 5–10%.';
+    document.getElementById('hist').innerHTML = '';
+    res.scrollIntoView({ behavior: 'smooth' });
+    saveGlobalStats();
+    return;
+  }
+  if (S.mode === 'cross') {
+    const c = S.cx;
+    const avg = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : NaN;
+    const h = avg(c.h), v = avg(c.v);
+    const pd = mm => (100 * Math.abs(mm) / FZ.FOCAL_MM).toFixed(1);
+    const spread = a => a.length > 1 ? Math.abs(a[0] - a[1]).toFixed(1) : '—';
+    document.getElementById('resTitle').textContent = 'Замер креста';
+    if (isNaN(h) || isNaN(v)) {
+      document.getElementById('resStats').innerHTML = '';
+      document.getElementById('resText').textContent = 'Замер не завершён.';
+    } else {
+      cfg.crossHistory = [{ d: new Date().toISOString().slice(0, 10), h, v }].concat(cfg.crossHistory || []).slice(0, 30);
+      save();
+      const hTxt = Math.abs(h) < 0.3 ? 'не пришлось (по центру)' : (h > 0 ? 'вправо' : 'влево') + ` на ${Math.abs(h).toFixed(1)} мм (≈${pd(h)}Δ)`;
+      const vTxt = Math.abs(v) < 0.3 ? 'не пришлось (по центру)' : (v > 0 ? 'вниз' : 'вверх') + ` на ${Math.abs(v).toFixed(1)} мм (≈${pd(v)}Δ)`;
+      document.getElementById('resStats').innerHTML = `
+        <div class="stat"><b>${h.toFixed(1)} мм</b><span>по горизонтали · разброс ${spread(c.h)} мм</span></div>
+        <div class="stat"><b>${v.toFixed(1)} мм</b><span>по вертикали · разброс ${spread(c.v)} мм</span></div>`;
+      document.getElementById('resText').innerHTML =
+        `Вертикальную линию (левый глаз) пришлось сдвинуть ${hTxt}; горизонтальную (правый глаз) — ${vTxt}.<br>` +
+        'Это смещение между глазами при слитой рамке. Чем ближе к нулю, тем точнее глаза работают вместе — сравнивай замеры раз в неделю. ' +
+        'Большой разброс между двумя проходами значит, что замер неточный, повтори.<br>' +
+        'Если линии мигали по очереди или одна пропадала — это соперничество или подавление, в такие моменты замер неточен.';
+    }
+    document.getElementById('hist').innerHTML = (cfg.crossHistory || []).map(x =>
+      `<li>${x.d}: горизонталь ${x.h.toFixed(1)} мм, вертикаль ${x.v.toFixed(1)} мм</li>`).join('');
+  } else if (S.mode === 'fusion') {
+    const avg = (arr, k) => arr.length ? arr.reduce((a, r) => a + r[k], 0) / arr.length : 0;
+    const R = S.fz.results;
+    const cb = avg(R.conv, 'brk'), cr = avg(R.conv, 'rec'), db = avg(R.div, 'brk'), dr = avg(R.div, 'rec');
+    const capped = R.conv.concat(R.div).some(r => r.capped);
+    cfg.fusionHistory = [{ d: new Date().toISOString().slice(0, 10), cb, cr, db, dr }]
+      .concat(cfg.fusionHistory || []).slice(0, 30);
+    save();
+    const f1 = v => v.toFixed(1);
+    document.getElementById('resTitle').textContent = 'Фузионный резерв';
+    document.getElementById('resStats').innerHTML = `
+      <div class="stat"><b>${f1(cb)} мм</b><span>сведение: двоится (≈${toPD(cb)}Δ)</span></div>
+      <div class="stat"><b>${f1(cr)} мм</b><span>сведение: снова одна (≈${toPD(cr)}Δ)</span></div>
+      <div class="stat"><b>${f1(db)} мм</b><span>разведение: двоится (≈${toPD(db)}Δ)</span></div>
+      <div class="stat"><b>${f1(dr)} мм</b><span>разведение: снова одна (≈${toPD(dr)}Δ)</span></div>`;
+    document.getElementById('resText').innerHTML =
+      'Миллиметры — сдвиг каждой картинки; по ним сравнивай себя от раза к разу, они точные. ' +
+      'Призменные диоптрии (Δ) примерные: зависят от линз шлема. Ориентир для взгляда вдаль у людей с нормальным бинокулярным зрением: ' +
+      'сведение — двоится около 19Δ, снова одна около 10Δ; разведение — двоится около 7Δ, снова одна около 4Δ. ' +
+      'Растут цифры по неделям, особенно «снова одна», — растёт запас, на котором держится слияние.' +
+      (capped ? '<br>Дошло до предела сдвига без двоения — запас в эту сторону больше, чем умеет показать шлем.' : '');
+    document.getElementById('hist').innerHTML = cfg.fusionHistory.map(h =>
+      `<li>${h.d}: сведение ${f1(h.cb)}/${f1(h.cr)} мм, разведение ${f1(h.db)}/${f1(h.dr)} мм</li>`).join('');
+  } else {
+    const trials = S.hits + S.misses;
+    const rate = trials ? Math.round(S.hits / trials * 100) : 0;
+    cfg.level = Math.max(0, S.level - 2); // start next session slightly easier
+    cfg.history = [{ d: new Date().toISOString().slice(0, 10), lvl: S.level, max: S.maxLevel, rate, fa: S.fa }]
+      .concat(cfg.history || []).slice(0, 30);
+    save();
+    document.getElementById('resTitle').textContent = 'Результат сессии';
+    document.getElementById('resStats').innerHTML = `
+      <div class="stat"><b>${S.level}</b><span>уровень в конце (из ${MAX_LEVEL})</span></div>
+      <div class="stat"><b>${S.maxLevel}</b><span>максимум за сессию</span></div>
+      <div class="stat"><b>${rate}%</b><span>замечено колец</span></div>
+      <div class="stat"><b>${S.fa}</b><span>нажатий впустую</span></div>`;
+    document.getElementById('resText').textContent =
+      'Уровень — это баланс глаз: насколько сильные помехи в сильном глазу слабый глаз выдерживает. Растёт уровень по неделям — подавление слабеет. Много нажатий впустую — уровень завышен, жми только когда видишь кольцо.';
+    document.getElementById('hist').innerHTML = cfg.history.map(h =>
+      `<li>${h.d}: уровень ${h.lvl}, макс ${h.max}, замечено ${h.rate}%, впустую ${h.fa}</li>`).join('');
+  }
+  if (cfg.nod && !S.motionEvents && S.mode !== 'marks') {
+    document.getElementById('resText').innerHTML +=
+      '<br><br>Датчик движения не прислал ни одного сигнала — на этой странице кивок не работает. Работают тап по экрану и пробел с Bluetooth-клавиатуры; кивок заработает со своей ссылки через Netlify.';
+  }
+  res.scrollIntoView({ behavior: 'smooth' });
+  saveGlobalStats();
+}
+
+// After a stereo session: the viewer reports (outside the headset, by tap) the finest level they saw.
+function rdsAsk() {
+  const box = document.getElementById('extra'); box.innerHTML = '';
+  box.appendChild(el('p', { className: 'hint' }, 'До какого уровня фигуры были видны?'));
+  const seg = el('div', { className: 'seg' });
+  const pick = (sec, label) => {
+    cfg.stereoHistory = [{ d: new Date().toISOString().slice(0, 10), sec }].concat(cfg.stereoHistory || []).slice(0, 30);
+    save();
+    box.innerHTML = '';
+    box.appendChild(el('p', { className: 'hint' }, `Записал: ${label}. Меньше угловых секунд — лучше стереозрение.`));
+    const ul = el('ul', { className: 'hist' });
+    cfg.stereoHistory.forEach(h => ul.appendChild(el('li', {}, `${h.d}: ${h.sec ? h.sec + '″' : 'фигуры не видны'}`)));
+    box.appendChild(ul);
+  };
+  RDS.LEVELS_DEV.forEach((d, i) => {
+    const sec = rdsArcsec(d);
+    const b = el('button', {}, `${i + 1}: ${sec}″`);
+    b.onclick = () => pick(sec, `уровень ${i + 1}, ${sec}″`);
+    seg.appendChild(b);
+  });
+  const none = el('button', {}, 'Ни одной');
+  none.onclick = () => pick(null, 'фигуры не видны');
+  seg.appendChild(none);
+  box.appendChild(seg);
+}
+
+function saveGlobalStats(minutes) {
+  try {
+    const s = JSON.parse(localStorage.getItem('eyegym_stats') || '{}');
+    s.sessions = (s.sessions || 0) + 1; s.minutes = (s.minutes || 0) + (minutes != null ? minutes : Math.round(cfg.dur / 60));
+    const today = new Date().toDateString();
+    if (s.today_date !== today) { s.today_date = today; s.today_exercises = []; s.streak = (s.streak || 0) + 1; }
+    if (!s.today_exercises.includes('Шлем')) s.today_exercises.push('Шлем');
+    localStorage.setItem('eyegym_stats', JSON.stringify(s));
+  } catch (e) {}
+}
+
+document.getElementById('startBtn').onclick = () => start(
+  cfg.mode === 'fusion' ? 'fusion' : PASSIVE[cfg.mode] ? cfg.mode : 'train');
+document.getElementById('crossBtn').onclick = () => start('cross');
+document.getElementById('marksBtn').onclick = () => start('marks');
+document.getElementById('progRun').onclick = () => { if (curProg().items.length) start('program'); };
+document.getElementById('marksCtl').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.id === 'marksDone') { finish(); return; }
+  cfg.lensMM = Math.min(76, Math.max(52, Math.round((cfg.lensMM + parseFloat(b.dataset.d)) * 2) / 2));
+  lens.value = cfg.lensMM; paintLens(); save();
+});
+// account sync is off: asking for it shows a sign-in banner on claude.ai
+</script>
+</body>
+</html>

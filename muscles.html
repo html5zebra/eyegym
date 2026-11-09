@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EyeGym — Мышцы глаза</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#0a0a0f; --surface:#111118; --border:#1e1e2e; --text:#e8e8f0; --muted:#555570; --accent:#00e5ff; --hit:#10b981; --err:#ef4444; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text); font-family:'Syne',sans-serif; height:100vh; overflow:hidden; display:flex; flex-direction:column; user-select:none; }
+
+  header { padding:14px 32px; display:flex; align-items:center; gap:24px; border-bottom:1px solid var(--border); background:rgba(10,10,15,0.9); backdrop-filter:blur(12px); flex-shrink:0; z-index:10; position:relative; }
+  .back-btn { display:flex; align-items:center; gap:8px; color:var(--muted); text-decoration:none; font-family:'DM Mono',monospace; font-size:12px; transition:color 0.2s; }
+  .back-btn:hover { color:var(--accent); }
+  .back-btn svg { width:16px; height:16px; }
+  .header-title { font-size:16px; font-weight:700; flex:1; }
+  .hud { display:flex; gap:24px; }
+  .hud-item { display:flex; flex-direction:column; align-items:flex-end; gap:2px; }
+  .hud-val { font-family:'DM Mono',monospace; font-size:20px; font-weight:500; color:var(--accent); line-height:1; }
+  .hud-val.g { color:var(--hit); }
+  .hud-label { font-family:'DM Mono',monospace; font-size:9px; color:var(--muted); text-transform:uppercase; letter-spacing:1.5px; }
+
+  .settings-bar { padding:8px 32px; display:flex; align-items:center; gap:10px; border-bottom:1px solid var(--border); background:rgba(10,10,15,0.7); flex-shrink:0; flex-wrap:wrap; z-index:10; }
+  .settings-label { font-family:'DM Mono',monospace; font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:2px; }
+  .btn-group { display:flex; gap:4px; }
+  .btn { font-family:'DM Mono',monospace; font-size:12px; padding:5px 12px; border-radius:8px; border:1px solid var(--border); background:var(--surface); color:var(--muted); cursor:pointer; transition:all 0.15s; white-space:nowrap; }
+  .btn:hover { border-color:var(--accent); color:var(--text); }
+  .btn.active { border-color:var(--accent); background:rgba(0,229,255,0.1); color:var(--accent); }
+  .sep { width:1px; height:20px; background:var(--border); margin:0 6px; }
+
+  .main { flex:1; position:relative; overflow:hidden; }
+  #canvas { position:absolute; inset:0; width:100%; height:100%; cursor:crosshair; }
+
+  /* Session timer ring */
+  #timer-ring { position:absolute; top:16px; right:24px; z-index:10; }
+  #timer-ring svg { width:56px; height:56px; }
+  .ring-bg { fill:none; stroke:var(--border); stroke-width:4; }
+  .ring-fill { fill:none; stroke:var(--accent); stroke-width:4; stroke-linecap:round; stroke-dasharray:138; stroke-dashoffset:0; transition:stroke-dashoffset 0.1s; transform:rotate(-90deg); transform-origin:50% 50%; }
+  .ring-text { font-family:'DM Mono',monospace; font-size:13px; fill:var(--text); text-anchor:middle; dominant-baseline:middle; }
+
+  #sf { position:fixed; inset:0; z-index:30; pointer-events:none; opacity:0; }
+  #sf.g { background:rgba(16,185,129,0.07); opacity:1; animation:fo .3s forwards; }
+  #sf.r { background:rgba(239,68,68,0.07); opacity:1; animation:fo .3s forwards; }
+  @keyframes fo { to{opacity:0} }
+
+  /* Overlay */
+  #overlay { position:absolute; inset:0; z-index:20; display:flex; flex-direction:column; align-items:center; justify-content:center; background:rgba(10,10,15,0.92); backdrop-filter:blur(20px); gap:20px; padding:24px; }
+  .ov-title { font-size:42px; font-weight:800; letter-spacing:-2px; }
+  .ov-sub { font-family:'DM Mono',monospace; font-size:13px; color:var(--muted); text-align:center; line-height:2; max-width:440px; }
+  .ov-sub strong { color:var(--accent); font-weight:500; }
+  .mode-cards { display:flex; gap:16px; }
+  .mode-card { padding:20px 24px; background:var(--surface); border:1px solid var(--border); border-radius:14px; max-width:200px; text-align:center; cursor:pointer; transition:all 0.2s; }
+  .mode-card:hover { border-color:var(--accent); box-shadow:0 0 24px -8px var(--accent); }
+  .mode-card.selected { border-color:var(--accent); background:rgba(0,229,255,0.08); }
+  .mc-icon { font-size:28px; margin-bottom:10px; }
+  .mc-title { font-size:15px; font-weight:700; margin-bottom:6px; }
+  .mc-desc { font-family:'DM Mono',monospace; font-size:11px; color:var(--muted); line-height:1.6; }
+  .ov-stats { display:flex; gap:28px; padding:16px 28px; background:var(--surface); border:1px solid var(--border); border-radius:14px; }
+  .ov-s { text-align:center; }
+  .ov-v { font-family:'DM Mono',monospace; font-size:28px; color:var(--accent); }
+  .ov-l { font-family:'DM Mono',monospace; font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:1.5px; margin-top:4px; }
+  .start-btn { font-family:'Syne',sans-serif; font-size:16px; font-weight:700; padding:14px 44px; border-radius:12px; border:1px solid var(--accent); background:rgba(0,229,255,0.1); color:var(--accent); cursor:pointer; letter-spacing:1px; transition:all 0.2s; }
+  .start-btn:hover { background:rgba(0,229,255,0.2); box-shadow:0 0 28px -8px var(--accent); transform:scale(1.02); }
+</style>
+</head>
+<body>
+<div id="sf"></div>
+<header>
+  <a href="all.html" class="back-btn">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 3 L5 8 L10 13"/></svg>
+    Назад
+  </a>
+  <div class="header-title">Мышцы глаза</div>
+  <div class="hud">
+    <div class="hud-item"><div class="hud-val" id="hud-hits">0</div><div class="hud-label">Попаданий</div></div>
+    <div class="hud-item"><div class="hud-val g" id="hud-score">0</div><div class="hud-label">Очки</div></div>
+  </div>
+</header>
+<div class="settings-bar">
+  <span class="settings-label">Режим</span>
+  <div class="btn-group" id="mode-btns">
+    <button class="btn active" data-mode="pursuit">Pursuit (следи)</button>
+    <button class="btn" data-mode="saccade">Саккады (прыгай)</button>
+  </div>
+  <div class="sep"></div>
+  <span class="settings-label">Помехи</span>
+  <div class="btn-group" id="noise-btns">
+    <button class="btn" data-noise="0">Нет</button>
+    <button class="btn active" data-noise="1">Слабые</button>
+    <button class="btn" data-noise="2">Средние</button>
+    <button class="btn" data-noise="3">Сильные</button>
+  </div>
+  <div class="sep"></div>
+  <span class="settings-label">Скорость цели</span>
+  <div class="btn-group" id="speed-btns">
+    <button class="btn" data-speed="0.4">Медленно</button>
+    <button class="btn active" data-speed="1">Норма</button>
+    <button class="btn" data-speed="1.8">Быстро</button>
+  </div>
+  <div class="sep"></div>
+  <span class="settings-label">Сессия</span>
+  <div class="btn-group" id="dur-btns">
+    <button class="btn" data-dur="60">1 мин</button>
+    <button class="btn active" data-dur="120">2 мин</button>
+    <button class="btn" data-dur="300">5 мин</button>
+  </div>
+</div>
+
+<div class="main">
+  <canvas id="canvas"></canvas>
+  <div id="timer-ring">
+    <svg viewBox="0 0 56 56">
+      <circle class="ring-bg" cx="28" cy="28" r="22"/>
+      <circle class="ring-fill" id="ring-fill" cx="28" cy="28" r="22"/>
+      <text class="ring-text" id="ring-text" x="28" y="28">—</text>
+    </svg>
+  </div>
+  <div id="overlay">
+    <div class="ov-title">Мышцы</div>
+    <div class="mode-cards">
+      <div class="mode-card selected" id="mc-pursuit" onclick="selectMode('pursuit')">
+        <div class="mc-icon">👁️</div>
+        <div class="mc-title">Pursuit</div>
+        <div class="mc-desc">Следи взглядом за движущейся точкой. Тренирует плавные движения глаз.</div>
+      </div>
+      <div class="mode-card" id="mc-saccade" onclick="selectMode('saccade')">
+        <div class="mc-icon">⚡</div>
+        <div class="mc-title">Саккады</div>
+        <div class="mc-desc">Точка мигает в разных местах — прыгай взглядом и кликай. Тренирует точность прыжков.</div>
+      </div>
+    </div>
+    <div class="ov-sub" id="ov-sub">
+      Следи взглядом за точкой — не двигай головой.<br>
+      Полосы мешают — это нормально, держи фокус на точке.<br>
+      <strong>Pursuit</strong> тренирует плавные глазодвигательные мышцы,<br>
+      <strong>Саккады</strong> — точность быстрых прыжков взгляда.
+    </div>
+    <div id="ov-stats" style="display:none" class="ov-stats">
+      <div class="ov-s"><div class="ov-v" id="ov-hits">—</div><div class="ov-l">Попаданий</div></div>
+      <div class="ov-s"><div class="ov-v" id="ov-acc">—</div><div class="ov-l">Точность</div></div>
+      <div class="ov-s"><div class="ov-v" id="ov-score">—</div><div class="ov-l">Счёт</div></div>
+    </div>
+    <button class="start-btn" id="start-btn">НАЧАТЬ</button>
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────
+// CONFIG
+// ─────────────────────────────────────────────
+let mode       = 'pursuit';
+let noiseLevel = 1;
+let speedMult  = 1.0;
+let sessionDur = 120;
+
+// ─────────────────────────────────────────────
+// CANVAS
+// ─────────────────────────────────────────────
+const canvas = document.getElementById('canvas');
+const ctx    = canvas.getContext('2d');
+let W, H;
+
+function resize() {
+  W = canvas.width  = canvas.offsetWidth;
+  H = canvas.height = canvas.offsetHeight;
+}
+window.addEventListener('resize', () => { resize(); });
+resize();
+
+// ─────────────────────────────────────────────
+// STRIPE BACKGROUND
+// ─────────────────────────────────────────────
+let stripeOff = 0, flickT = 0;
+
+function drawStripes() {
+  if (noiseLevel === 0) return;
+  const configs = [null,
+    { w:20, gap:60, op:0.40 },
+    { w:32, gap:44, op:0.72 },
+    { w:44, gap:32, op:0.96 },
+  ];
+  const cfg = configs[noiseLevel];
+  const period = cfg.w + cfg.gap;
+  stripeOff += [0, 0.4, 0.9, 1.8][noiseLevel] * speedMult;
+  if (stripeOff > period) stripeOff -= period;
+  flickT += 0.06;
+  const flk = 0.78 + 0.13*Math.sin(flickT*3.7) + 0.09*Math.sin(flickT*11.3+1.2);
+  const op  = cfg.op * flk;
+  const diag = Math.sqrt(W*W + H*H);
+  ctx.save();
+  ctx.translate(W/2, H/2);
+  ctx.rotate(Math.PI/4);
+  ctx.shadowColor = `rgba(200,255,255,${op*0.7})`; ctx.shadowBlur = 14;
+  for (let x = -diag/2 - period + (stripeOff % period); x < diag/2 + period; x += period) {
+    ctx.fillStyle = `rgba(255,255,255,${op})`;
+    ctx.fillRect(x, -diag/2, cfg.w, diag);
+  }
+  ctx.restore();
+}
+
+// ─────────────────────────────────────────────
+// TARGET
+// ─────────────────────────────────────────────
+const TARGET_R = 18;
+const HIT_R    = 40; // click radius
+
+// ── PURSUIT: figure-8 / lemniscate path ──
+let pursuitT = 0;
+let targetX = 0, targetY = 0;
+
+// Lemniscate of Bernoulli — covers both horizontal and vertical movement
+function pursuitPath(t) {
+  const a = Math.min(W, H) * 0.32 * speedMult;
+  const denom = 1 + Math.sin(t) * Math.sin(t);
+  const x = W/2 + a * Math.cos(t) / denom;
+  const y = H/2 + a * Math.sin(t) * Math.cos(t) / denom;
+  return { x, y };
+}
+
+// ── SACCADE: random jump targets ──
+let saccadeTarget  = { x: 0, y: 0 };
+let saccadeVisible = false;
+let saccadeTimer   = null;
+let saccadeClicks  = 0, saccadeMisses = 0;
+let saccadeActive  = false; // waiting for click
+
+function newSaccadeTarget() {
+  const margin = 60;
+  saccadeTarget.x = margin + Math.random() * (W - margin*2);
+  saccadeTarget.y = margin + Math.random() * (H - margin*2);
+  saccadeVisible = true;
+  saccadeActive  = true;
+
+  // Time window to click — faster = harder
+  const windowMs = Math.round(1800 / speedMult);
+  clearTimeout(saccadeTimer);
+  saccadeTimer = setTimeout(() => {
+    if (saccadeActive) {
+      // missed
+      saccadeMisses++;
+      saccadeActive = false;
+      saccadeVisible = false;
+      flash('r');
+      setTimeout(newSaccadeTarget, 400);
+    }
+  }, windowMs);
+}
+
+// ─────────────────────────────────────────────
+// GAME STATE
+// ─────────────────────────────────────────────
+let isRunning = false, animId = null;
+let hits = 0, score = 0, totalClicks = 0;
+let startTime = null, timerInt = null;
+
+// Pursuit: ring of dots user clicks to confirm tracking
+let pursuitClickReady = false;
+let nextClickTime     = 0;
+
+function startGame() {
+  isRunning = true; hits = 0; score = 0; totalClicks = 0;
+  saccadeClicks = 0; saccadeMisses = 0;
+  pursuitT = 0; pursuitClickReady = false;
+  document.getElementById('overlay').style.display = 'none';
+  document.getElementById('ov-stats').style.display = 'none';
+  document.getElementById('hud-hits').textContent  = 0;
+  document.getElementById('hud-score').textContent = 0;
+  resize();
+
+  startTime = Date.now();
+  timerInt  = setInterval(tickTimer, 100);
+
+  if (mode === 'saccade') {
+    saccadeVisible = false;
+    setTimeout(newSaccadeTarget, 600);
+  } else {
+    nextClickTime = Date.now() + 2000; // first click opportunity after 2s
+  }
+
+  loop();
+}
+
+function loop() {
+  if (!isRunning) return;
+  ctx.clearRect(0, 0, W, H);
+
+  // BG
+  ctx.fillStyle = '#0a0a0f';
+  ctx.fillRect(0, 0, W, H);
+  drawStripes();
+
+  if (mode === 'pursuit') drawPursuit();
+  else                    drawSaccade();
+
+  animId = requestAnimationFrame(loop);
+}
+
+// ─────────────────────────────────────────────
+// PURSUIT DRAW
+// ─────────────────────────────────────────────
+let trailPoints = [];
+
+function drawPursuit() {
+  pursuitT += 0.012 * speedMult;
+  const pos = pursuitPath(pursuitT);
+  targetX = pos.x; targetY = pos.y;
+
+  // Trail
+  trailPoints.push({ x: targetX, y: targetY, t: Date.now() });
+  trailPoints = trailPoints.filter(p => Date.now() - p.t < 600);
+  trailPoints.forEach((p, i) => {
+    const alpha = (i / trailPoints.length) * 0.25;
+    ctx.fillStyle = `rgba(0,229,255,${alpha})`;
+    ctx.beginPath(); ctx.arc(p.x, p.y, TARGET_R * 0.4, 0, Math.PI*2); ctx.fill();
+  });
+
+  // Click readiness pulse
+  pursuitClickReady = Date.now() >= nextClickTime;
+
+  // Target glow
+  const glowR = pursuitClickReady ? TARGET_R * 2.2 : TARGET_R * 1.5;
+  const grad = ctx.createRadialGradient(targetX, targetY, 0, targetX, targetY, glowR);
+  grad.addColorStop(0, pursuitClickReady ? 'rgba(16,185,129,0.3)' : 'rgba(0,229,255,0.2)');
+  grad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = grad;
+  ctx.beginPath(); ctx.arc(targetX, targetY, glowR, 0, Math.PI*2); ctx.fill();
+
+  // Core dot
+  ctx.fillStyle = pursuitClickReady ? '#10b981' : '#00e5ff';
+  ctx.shadowColor = pursuitClickReady ? '#10b981' : '#00e5ff';
+  ctx.shadowBlur  = 20;
+  ctx.beginPath(); ctx.arc(targetX, targetY, TARGET_R, 0, Math.PI*2); ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // Inner ring — rings when clickable
+  if (pursuitClickReady) {
+    const pulse = 0.5 + 0.5 * Math.sin(Date.now() * 0.01);
+    ctx.strokeStyle = `rgba(16,185,129,${0.4 + pulse * 0.4})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(targetX, targetY, TARGET_R + 10 + pulse * 6, 0, Math.PI*2); ctx.stroke();
+  }
+
+  // Path ghost (very faint — helps eye anticipate)
+  ctx.strokeStyle = 'rgba(0,229,255,0.04)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let t2 = pursuitT; t2 < pursuitT + Math.PI*2; t2 += 0.1) {
+    const p = pursuitPath(t2);
+    t2 === pursuitT ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y);
+  }
+  ctx.stroke();
+
+  // Instruction
+  ctx.fillStyle = 'rgba(85,85,112,0.6)';
+  ctx.font = `12px 'DM Mono', monospace`;
+  ctx.textAlign = 'center';
+  ctx.fillText(pursuitClickReady ? 'КЛИК — точка зелёная!' : 'следи взглядом за точкой', W/2, H - 24);
+}
+
+// ─────────────────────────────────────────────
+// SACCADE DRAW
+// ─────────────────────────────────────────────
+let saccadeFlash = 0;
+
+function drawSaccade() {
+  if (!saccadeVisible) return;
+
+  // Countdown ring
+  // (visual urgency — circle shrinks as time runs out)
+  const elapsed   = Date.now() - (startTime || Date.now());
+  const windowMs  = Math.round(1800 / speedMult);
+
+  const grad = ctx.createRadialGradient(saccadeTarget.x, saccadeTarget.y, 0, saccadeTarget.x, saccadeTarget.y, TARGET_R * 2);
+  grad.addColorStop(0, 'rgba(0,229,255,0.25)');
+  grad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = grad;
+  ctx.beginPath(); ctx.arc(saccadeTarget.x, saccadeTarget.y, TARGET_R * 2, 0, Math.PI*2); ctx.fill();
+
+  ctx.fillStyle = '#00e5ff';
+  ctx.shadowColor = '#00e5ff'; ctx.shadowBlur = 24;
+  ctx.beginPath(); ctx.arc(saccadeTarget.x, saccadeTarget.y, TARGET_R, 0, Math.PI*2); ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // Inner dot
+  ctx.fillStyle = '#0a0a0f';
+  ctx.beginPath(); ctx.arc(saccadeTarget.x, saccadeTarget.y, TARGET_R * 0.35, 0, Math.PI*2); ctx.fill();
+
+  ctx.fillStyle = 'rgba(85,85,112,0.6)';
+  ctx.font = `12px 'DM Mono', monospace`;
+  ctx.textAlign = 'center';
+  ctx.fillText('прыгни взглядом и кликни', W/2, H - 24);
+}
+
+// ─────────────────────────────────────────────
+// INPUT
+// ─────────────────────────────────────────────
+canvas.addEventListener('click', e => {
+  if (!isRunning) return;
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+
+  if (mode === 'pursuit') {
+    totalClicks++;
+    const dist = Math.hypot(mx - targetX, my - targetY);
+    if (dist < HIT_R && pursuitClickReady) {
+      hits++; score += 10;
+      nextClickTime = Date.now() + 1500 + Math.random() * 1000;
+      pursuitClickReady = false;
+      document.getElementById('hud-hits').textContent  = hits;
+      document.getElementById('hud-score').textContent = score;
+      flash('g');
+    } else if (dist >= HIT_R) {
+      flash('r');
+    }
+  }
+  else { // saccade
+    if (!saccadeActive) return;
+    totalClicks++;
+    const dist = Math.hypot(mx - saccadeTarget.x, my - saccadeTarget.y);
+    if (dist < HIT_R) {
+      hits++; score += 15;
+      saccadeClicks++;
+      saccadeActive  = false;
+      saccadeVisible = false;
+      clearTimeout(saccadeTimer);
+      document.getElementById('hud-hits').textContent  = hits;
+      document.getElementById('hud-score').textContent = score;
+      flash('g');
+      setTimeout(newSaccadeTarget, 300 + Math.random() * 400);
+    } else {
+      saccadeMisses++;
+      flash('r');
+    }
+  }
+});
+
+// ─────────────────────────────────────────────
+// TIMER
+// ─────────────────────────────────────────────
+function tickTimer() {
+  const elapsed = (Date.now() - startTime) / 1000;
+  const left    = Math.max(0, sessionDur - elapsed);
+  const pct     = left / sessionDur;
+  const dashOffset = 138 * (1 - pct);
+  document.getElementById('ring-fill').style.strokeDashoffset = dashOffset;
+  document.getElementById('ring-text').textContent = Math.ceil(left) + 's';
+
+  if (left <= 0) finishGame();
+}
+
+function finishGame() {
+  isRunning = false;
+  clearInterval(timerInt); cancelAnimationFrame(animId);
+  clearTimeout(saccadeTimer);
+  ctx.clearRect(0, 0, W, H);
+
+  const acc = totalClicks > 0 ? Math.round(hits / totalClicks * 100) : 0;
+  document.getElementById('ov-hits').textContent  = hits;
+  document.getElementById('ov-acc').textContent   = acc + '%';
+  document.getElementById('ov-score').textContent = score;
+  document.getElementById('ov-stats').style.display = 'flex';
+
+  const ol = document.getElementById('overlay');
+  ol.querySelector('.ov-title').textContent = '✓ Готово';
+  document.getElementById('ov-sub').innerHTML = `${hits} попаданий · точность ${acc}%`;
+  document.querySelector('.mode-cards').style.display = 'none';
+  document.getElementById('start-btn').textContent = 'ЕЩЁ РАЗ';
+  ol.style.display = 'flex';
+
+  saveStats();
+}
+
+function flash(cls) { const el=document.getElementById('sf'); el.className=''; void el.offsetWidth; el.className=cls; }
+
+// ─────────────────────────────────────────────
+// MODE SELECT (overlay)
+// ─────────────────────────────────────────────
+function selectMode(m) {
+  mode = m;
+  document.getElementById('mc-pursuit').classList.toggle('selected', m==='pursuit');
+  document.getElementById('mc-saccade').classList.toggle('selected', m==='saccade');
+  document.querySelectorAll('#mode-btns .btn').forEach(b => b.classList.toggle('active', b.dataset.mode===m));
+  document.getElementById('ov-sub').innerHTML = m === 'pursuit'
+    ? `Следи взглядом за точкой — <strong>не двигай головой</strong>.<br>Когда точка позеленеет — кликни по ней.<br>Полосы мешают — держи фокус на точке.`
+    : `Точка мигает в случайном месте — <strong>прыгни взглядом</strong> и кликни.<br>Не двигай головой. Успей до того как пропадёт.<br>Тренирует точность саккад — быстрых прыжков взгляда.`;
+}
+
+// ─────────────────────────────────────────────
+// SETTINGS
+// ─────────────────────────────────────────────
+document.getElementById('mode-btns').addEventListener('click', e => {
+  const b = e.target.closest('[data-mode]'); if (!b) return;
+  selectMode(b.dataset.mode);
+});
+document.getElementById('noise-btns').addEventListener('click', e => {
+  const b = e.target.closest('[data-noise]'); if (!b) return;
+  noiseLevel = parseInt(b.dataset.noise);
+  document.querySelectorAll('#noise-btns .btn').forEach(x => x.classList.remove('active')); b.classList.add('active');
+});
+document.getElementById('speed-btns').addEventListener('click', e => {
+  const b = e.target.closest('[data-speed]'); if (!b) return;
+  speedMult = parseFloat(b.dataset.speed);
+  document.querySelectorAll('#speed-btns .btn').forEach(x => x.classList.remove('active')); b.classList.add('active');
+});
+document.getElementById('dur-btns').addEventListener('click', e => {
+  const b = e.target.closest('[data-dur]'); if (!b) return;
+  sessionDur = parseInt(b.dataset.dur);
+  document.querySelectorAll('#dur-btns .btn').forEach(x => x.classList.remove('active')); b.classList.add('active');
+});
+document.getElementById('start-btn').addEventListener('click', () => {
+  document.querySelector('.mode-cards').style.display = 'flex';
+  startGame();
+});
+
+// ─────────────────────────────────────────────
+// STATS
+// ─────────────────────────────────────────────
+function saveStats() {
+  const s = JSON.parse(localStorage.getItem('eyegym_stats') || '{}');
+  s.sessions = (s.sessions||0) + 1;
+  s.minutes  = (s.minutes||0)  + Math.round(sessionDur/60);
+  const today = new Date().toDateString();
+  if (s.today_date !== today) { s.today_date=today; s.today_exercises=[]; s.streak=(s.streak||0)+1; }
+  if (!s.today_exercises.includes('Мышцы')) s.today_exercises.push('Мышцы');
+  localStorage.setItem('eyegym_stats', JSON.stringify(s));
+}
+</script>
+</body>
+</html>

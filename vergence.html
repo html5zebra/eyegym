@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EyeGym — Конвергенция</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#0a0a0f; --surface:#111118; --border:#1e1e2e; --text:#e8e8f0; --muted:#555570; --accent:#10b981; --accent2:#00e5ff; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text); font-family:'Syne',sans-serif; height:100vh; overflow:hidden; display:flex; flex-direction:column; user-select:none; }
+  header { padding:14px 32px; display:flex; align-items:center; gap:24px; border-bottom:1px solid var(--border); background:rgba(10,10,15,0.9); backdrop-filter:blur(12px); flex-shrink:0; z-index:10; position:relative; }
+  .back-btn { display:flex; align-items:center; gap:8px; color:var(--muted); text-decoration:none; font-family:'DM Mono',monospace; font-size:12px; transition:color 0.2s; }
+  .back-btn:hover { color:var(--accent); }
+  .back-btn svg { width:16px; height:16px; }
+  .header-title { font-size:16px; font-weight:700; flex:1; }
+  .hud { display:flex; gap:24px; }
+  .hud-item { display:flex; flex-direction:column; align-items:flex-end; gap:2px; }
+  .hud-val { font-family:'DM Mono',monospace; font-size:18px; font-weight:500; color:var(--accent); line-height:1; }
+  .hud-label { font-family:'DM Mono',monospace; font-size:9px; color:var(--muted); text-transform:uppercase; letter-spacing:1.5px; }
+
+  .settings-bar { padding:8px 32px; display:flex; align-items:center; gap:10px; border-bottom:1px solid var(--border); background:rgba(10,10,15,0.7); flex-shrink:0; flex-wrap:wrap; z-index:10; position:relative; }
+  .settings-label { font-family:'DM Mono',monospace; font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:2px; }
+  .btn-group { display:flex; gap:4px; }
+  .btn { font-family:'DM Mono',monospace; font-size:12px; padding:5px 12px; border-radius:8px; border:1px solid var(--border); background:var(--surface); color:var(--muted); cursor:pointer; transition:all 0.15s; white-space:nowrap; }
+  .btn:hover { border-color:var(--accent); color:var(--text); }
+  .btn.active { border-color:var(--accent); background:rgba(16,185,129,0.12); color:var(--accent); }
+  .sep { width:1px; height:20px; background:var(--border); margin:0 6px; }
+
+  .main { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; position:relative; overflow:hidden; gap:16px; }
+
+  /* ── STEREO PAIR ── */
+  .stereo-wrap { display:flex; flex-direction:column; align-items:center; gap:12px; }
+
+  /* Alignment dots row — helps eyes find the fusion point */
+  .align-dots { display:flex; gap:0; }
+  .align-dot { width:8px; height:8px; border-radius:50%; background:var(--muted); opacity:0.4; }
+  .align-dot.center { background:var(--accent); opacity:0.8; }
+
+  /* The two canvases */
+  .circles-row { display:flex; align-items:center; gap:0; }
+  #left-c, #right-c { display:block; flex-shrink:0; }
+
+  /* Meter */
+  .depth-meter { display:flex; align-items:center; gap:12px; }
+  .meter-label { font-family:'DM Mono',monospace; font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:1.5px; }
+  .meter-track { width:200px; height:6px; background:var(--border); border-radius:3px; overflow:hidden; }
+  .meter-fill { height:100%; border-radius:3px; background:var(--accent); width:0%; transition:width 0.15s; box-shadow:0 0 8px var(--accent); }
+  .meter-val { font-family:'DM Mono',monospace; font-size:12px; color:var(--accent); width:40px; }
+
+  /* Instructions */
+  .inst { font-family:'DM Mono',monospace; font-size:13px; color:var(--muted); text-align:center; line-height:1.9; max-width:560px; padding:0 20px; }
+  .inst strong { color:var(--accent); font-weight:500; }
+
+  .hint-small { font-family:'DM Mono',monospace; font-size:10px; color:var(--muted); opacity:0.45; text-align:center; }
+
+  /* Score pop */
+  .score-pop { position:absolute; z-index:20; font-family:'DM Mono',monospace; font-size:22px; color:var(--accent); pointer-events:none; animation:popup 1s ease-out forwards; }
+  @keyframes popup { 0%{opacity:1;transform:translateY(0) scale(1)} 100%{opacity:0;transform:translateY(-60px) scale(0.8)} }
+
+  #sf { position:fixed; inset:0; z-index:30; pointer-events:none; opacity:0; background:rgba(16,185,129,0.08); }
+  #sf.on { opacity:1; animation:sfout 0.8s ease-out forwards; }
+  @keyframes sfout { to{opacity:0} }
+
+  /* Overlay */
+  #overlay { position:absolute; inset:0; z-index:20; display:flex; flex-direction:column; align-items:center; justify-content:center; background:rgba(10,10,15,0.92); backdrop-filter:blur(20px); gap:20px; padding:20px; }
+  .ov-title { font-size:40px; font-weight:800; letter-spacing:-2px; }
+  .ov-sub { font-family:'DM Mono',monospace; font-size:13px; color:var(--muted); text-align:center; line-height:2; max-width:520px; }
+  .ov-sub strong { color:var(--accent); font-weight:500; }
+
+  /* How-to diagram inside overlay */
+  .howto { display:flex; gap:32px; align-items:flex-start; }
+  .howto-step { text-align:center; max-width:140px; }
+  .howto-icon { font-size:28px; margin-bottom:8px; }
+  .howto-text { font-family:'DM Mono',monospace; font-size:11px; color:var(--muted); line-height:1.6; }
+  .howto-text strong { color:var(--text); }
+
+  .start-btn { font-family:'Syne',sans-serif; font-size:16px; font-weight:700; padding:14px 44px; border-radius:12px; border:1px solid var(--accent); background:rgba(16,185,129,0.1); color:var(--accent); cursor:pointer; letter-spacing:1px; transition:all 0.2s; }
+  .start-btn:hover { background:rgba(16,185,129,0.2); box-shadow:0 0 28px -8px var(--accent); transform:scale(1.02); }
+
+  .tip-box { padding:14px 22px; background:var(--surface); border:1px solid var(--border); border-radius:12px; font-family:'DM Mono',monospace; font-size:11px; color:var(--muted); line-height:1.8; max-width:460px; text-align:center; }
+  .tip-box b { color:var(--accent2); font-weight:400; }
+</style>
+</head>
+<body>
+<div id="sf"></div>
+<header>
+  <a href="all.html" class="back-btn">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 3 L5 8 L10 13"/></svg>
+    Назад
+  </a>
+  <div class="header-title">Конвергенция</div>
+  <div class="hud">
+    <div class="hud-item"><div class="hud-val" id="hud-f">0</div><div class="hud-label">Слияний</div></div>
+    <div class="hud-item"><div class="hud-val" id="hud-t">00:00</div><div class="hud-label">Время</div></div>
+    <div class="hud-item"><div class="hud-val" id="hud-s">0</div><div class="hud-label">Очки</div></div>
+  </div>
+</header>
+<div class="settings-bar">
+  <span class="settings-label">Метод</span>
+  <div class="btn-group" id="method-btns">
+    <button class="btn active" data-method="cross">Конвергенция (скосить)</button>
+    <button class="btn" data-method="parallel">Дивергенция (расфокус)</button>
+  </div>
+  <div class="sep"></div>
+  <span class="settings-label">Паттерн</span>
+  <div class="btn-group" id="pat-btns">
+    <button class="btn active" data-pat="simple">Простой</button>
+    <button class="btn" data-pat="rings">Кольца</button>
+    <button class="btn" data-pat="grid">Сетка</button>
+  </div>
+  <div class="sep"></div>
+  <span class="settings-label">Сессия</span>
+  <div class="btn-group" id="dur-btns">
+    <button class="btn" data-dur="120">2 мин</button>
+    <button class="btn active" data-dur="300">5 мин</button>
+    <button class="btn" data-dur="600">10 мин</button>
+  </div>
+</div>
+
+<div class="main">
+  <div class="stereo-wrap">
+    <!-- Alignment guide dots -->
+    <div class="align-dots" id="align-dots"></div>
+
+    <!-- The two images -->
+    <div class="circles-row" id="circles-row">
+      <canvas id="left-c"></canvas>
+      <div id="gap-div" style="flex-shrink:0"></div>
+      <canvas id="right-c"></canvas>
+    </div>
+  </div>
+
+  <div class="depth-meter">
+    <span class="meter-label">Удержание</span>
+    <div class="meter-track"><div class="meter-fill" id="mf"></div></div>
+    <span class="meter-val" id="mv">0%</span>
+  </div>
+
+  <div class="inst" id="inst">
+    Смотри <strong>между</strong> кругами. Расфокусируй взгляд — позволь ему «уйти вдаль».<br>
+    Должен появиться <strong>третий круг посередине</strong> — это слияние.<br>
+    Нажми <strong>пробел</strong> и держи пока полоска не заполнится.
+  </div>
+
+  <div class="hint-small" id="hint-wheel">колесо мыши — расстояние · ← → — тоже</div>
+
+  <div id="overlay">
+    <div class="ov-title">Конвергенция</div>
+
+    <div class="howto">
+      <div class="howto-step">
+        <div class="howto-icon">👁️&nbsp;&nbsp;👁️</div>
+        <div class="howto-text"><strong>Два круга</strong><br>видишь перед собой</div>
+      </div>
+      <div class="howto-step">
+        <div class="howto-icon">🔀</div>
+        <div class="howto-text"><strong>Расфокусируй</strong><br>взгляд "сквозь" экран вдаль</div>
+      </div>
+      <div class="howto-step">
+        <div class="howto-icon">⭕</div>
+        <div class="howto-text"><strong>Третий круг</strong><br>появится в центре — это слияние!</div>
+      </div>
+      <div class="howto-step">
+        <div class="howto-icon">␣</div>
+        <div class="howto-text"><strong>Пробел</strong><br>держи пока полоска не заполнится</div>
+      </div>
+    </div>
+
+    <div class="ov-sub">
+      <b>Совет 1:</b> сядь на расстоянии вытянутой руки от экрана.<br>
+      <b>Совет 2:</b> сначала поднеси палец к носу — сфокусируйся на пальце,<br>
+      потом медленно убирай палец. Взгляд «провалится» за экран — вот оно!<br>
+      <b>Совет 3:</b> колесом мыши подбери расстояние между кругами под свои глаза.
+    </div>
+
+    <div class="tip-box">
+      Расстояние между кругами должно быть ≈ расстоянию между твоими зрачками (~63 мм).<br>
+      Колесо мыши или ← → подстраивают это расстояние.
+    </div>
+
+    <button class="start-btn" id="start-btn">НАЧАТЬ</button>
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────
+// CONFIG
+// ─────────────────────────────────────────────
+let method     = 'cross';   // cross = converge (eyes in), parallel = diverge (eyes out)
+let patType    = 'simple';
+let sessionDur = 300;
+
+// IPD-matched gap: default 0 — circles touch, user adjusts with wheel
+// The CRITICAL insight: for cross-fusion, circles should be separated by ~IPD (63mm on screen)
+// For parallel fusion, they can be further apart
+// We let the user tune this
+
+const LC = document.getElementById('left-c');
+const RC = document.getElementById('right-c');
+const lx = LC.getContext('2d');
+const rx = RC.getContext('2d');
+
+let cSize = 200; // canvas diameter in px
+let gapPx = 20;  // gap between the two canvases
+
+function resize() {
+  // Make circles fit vertically with room for controls
+  const avH = window.innerHeight - 260;
+  const avW = (window.innerWidth - 120) / 2;
+  cSize = Math.max(120, Math.min(220, Math.min(avH * 0.5, avW)));
+  LC.width = LC.height = RC.width = RC.height = cSize;
+  document.getElementById('gap-div').style.width = gapPx + 'px';
+  buildAlignDots();
+  draw();
+}
+window.addEventListener('resize', resize);
+
+// ─────────────────────────────────────────────
+// ALIGNMENT GUIDE DOTS
+// Shows a row of dots spanning both circles to
+// help the user align their eyes horizontally
+// ─────────────────────────────────────────────
+function buildAlignDots() {
+  const container = document.getElementById('align-dots');
+  container.innerHTML = '';
+  const totalW = cSize * 2 + gapPx;
+  // Place dots at: left-center, gap-center, right-center, plus edges
+  const positions = [0, cSize / 2, cSize, cSize + gapPx / 2, cSize + gapPx, cSize + gapPx + cSize / 2, totalW];
+  container.style.width = totalW + 'px';
+  container.style.position = 'relative';
+  container.style.height = '12px';
+  positions.forEach(x => {
+    const d = document.createElement('div');
+    d.style.cssText = `position:absolute;top:2px;left:${x}px;transform:translateX(-50%);
+      width:6px;height:6px;border-radius:50%;
+      background:${x === cSize + gapPx / 2 ? 'var(--accent)' : 'var(--muted)'};
+      opacity:${x === cSize + gapPx / 2 ? '0.9' : '0.3'}`;
+    container.appendChild(d);
+  });
+}
+
+// ─────────────────────────────────────────────
+// DRAWING
+// The LEFT image and RIGHT image are IDENTICAL
+// except the hidden depth marker is shifted.
+//
+// For CROSS fusion (eyes converging):
+//   left-eye sees right canvas → shift right in right canvas
+//   right-eye sees left canvas → shift left in left canvas
+//   → depth marker appears to float IN FRONT of screen
+//
+// For PARALLEL fusion (eyes diverging):
+//   opposite shift → marker floats BEHIND screen
+// ─────────────────────────────────────────────
+let tick_n = 0;
+
+function drawCircle(ctx, side) {
+  const s = cSize, r = s / 2;
+
+  // Disparity: the secret depth element shifts by ~4-8% of circle size
+  // cross: left-img shifts right, right-img shifts left (objects appear in front)
+  const disp  = Math.round(s * 0.07);
+  const shift = method === 'cross'
+    ? (side === 'left' ? +disp : -disp)   // convergence: depth in front
+    : (side === 'left' ? -disp : +disp);  // divergence: depth behind
+
+  ctx.clearRect(0, 0, s, s);
+
+  // ── BG circle ──
+  ctx.fillStyle = '#0d0d18';
+  ctx.beginPath(); ctx.arc(r, r, r, 0, Math.PI * 2); ctx.fill();
+
+  ctx.save();
+  ctx.beginPath(); ctx.arc(r, r, r - 1, 0, Math.PI * 2); ctx.clip();
+
+  // ── PATTERN ──
+  if (patType === 'simple') {
+    // Minimalist: just a crosshair + outer ring — easiest to fuse
+    ctx.strokeStyle = 'rgba(180,180,210,0.5)'; ctx.lineWidth = 0.8;
+    ctx.beginPath(); ctx.moveTo(r - r*0.6, r); ctx.lineTo(r + r*0.6, r); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(r, r - r*0.6); ctx.lineTo(r, r + r*0.6); ctx.stroke();
+    ctx.strokeStyle = 'rgba(180,180,210,0.25)'; ctx.lineWidth = 0.6;
+    ctx.beginPath(); ctx.arc(r, r, r * 0.55, 0, Math.PI * 2); ctx.stroke();
+  }
+  else if (patType === 'rings') {
+    for (let i = 1; i <= 5; i++) {
+      ctx.strokeStyle = `rgba(180,180,220,${i % 2 === 0 ? 0.5 : 0.2})`;
+      ctx.lineWidth = i % 2 === 0 ? 1.2 : 0.7;
+      ctx.beginPath(); ctx.arc(r, r, (r - 4) * i / 5, 0, Math.PI * 2); ctx.stroke();
+    }
+    ctx.strokeStyle = 'rgba(180,180,220,0.3)'; ctx.lineWidth = 0.7;
+    ctx.beginPath(); ctx.moveTo(r-14,r); ctx.lineTo(r+14,r); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(r,r-14); ctx.lineTo(r,r+14); ctx.stroke();
+  }
+  else if (patType === 'grid') {
+    const step = s / 8;
+    ctx.strokeStyle = 'rgba(180,180,220,0.18)'; ctx.lineWidth = 0.6;
+    for (let x = step; x < s; x += step) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,s); ctx.stroke(); }
+    for (let y = step; y < s; y += step) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(s,y); ctx.stroke(); }
+    ctx.strokeStyle = 'rgba(180,180,220,0.55)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(r-20,r); ctx.lineTo(r+20,r); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(r,r-20); ctx.lineTo(r,r+20); ctx.stroke();
+  }
+
+  // ── DEPTH ELEMENT (the binocular disparity marker) ──
+  // This small shape is shifted differently in L and R images.
+  // When the brain fuses them it perceives depth (floating circle).
+  ctx.strokeStyle = '#10b981'; ctx.lineWidth = 2; ctx.globalAlpha = 0.75;
+  ctx.beginPath(); ctx.arc(r + shift, r, Math.round(s * 0.1), 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = '#10b981'; ctx.globalAlpha = 0.6;
+  ctx.beginPath(); ctx.arc(r + shift, r, 3, 0, Math.PI * 2); ctx.fill();
+  ctx.globalAlpha = 1;
+
+  ctx.restore();
+
+  // ── OUTER BORDER ──
+  ctx.strokeStyle = 'rgba(16,185,129,0.3)'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(r, r, r - 1, 0, Math.PI * 2); ctx.stroke();
+
+  // ── L / R label (helps orient during setup) ──
+  ctx.fillStyle = 'rgba(85,85,112,0.5)';
+  ctx.font = `${Math.round(s*0.07)}px 'DM Mono', monospace`;
+  ctx.textAlign = 'center';
+  ctx.fillText(side === 'left' ? 'L' : 'R', r, s - Math.round(s*0.06));
+}
+
+function draw() {
+  drawCircle(lx, 'left');
+  drawCircle(rx, 'right');
+}
+
+// ─────────────────────────────────────────────
+// GAME STATE
+// ─────────────────────────────────────────────
+let isRunning = false, fusionCount = 0, score = 0;
+let isFusing = false, holdStart = null;
+let startTime = null, timerInt = null, animId = null;
+const HOLD_REQUIRED = 3; // seconds to hold
+
+function startGame() {
+  isRunning = true; fusionCount = 0; score = 0; isFusing = false; holdStart = null;
+  document.getElementById('overlay').style.display = 'none';
+  document.getElementById('hud-f').textContent = 0;
+  document.getElementById('hud-s').textContent = 0;
+  setMeter(0);
+  startTime = Date.now();
+  timerInt = setInterval(gameTick, 100);
+  resize(); loop();
+}
+
+function loop() {
+  if (!isRunning) return;
+  animId = requestAnimationFrame(loop);
+}
+
+function gameTick() {
+  const elapsed = (Date.now() - startTime) / 1000;
+  const mm = String(Math.floor(elapsed/60)).padStart(2,'0');
+  const ss = String(Math.floor(elapsed%60)).padStart(2,'0');
+  document.getElementById('hud-t').textContent = `${mm}:${ss}`;
+
+  if (isFusing && holdStart) {
+    const held = (Date.now() - holdStart) / 1000;
+    const pct  = Math.min(held / HOLD_REQUIRED * 100, 100);
+    setMeter(pct);
+    if (held >= HOLD_REQUIRED) registerFusion();
+  }
+
+  if (elapsed >= sessionDur) finishGame();
+}
+
+function setMeter(p) {
+  document.getElementById('mf').style.width = p + '%';
+  document.getElementById('mv').textContent = Math.round(p) + '%';
+}
+
+function registerFusion() {
+  isFusing = false; holdStart = null;
+  fusionCount++;
+  const pts = 50 + fusionCount * 10;
+  score += pts;
+  document.getElementById('hud-f').textContent = fusionCount;
+  document.getElementById('hud-s').textContent = score;
+  setMeter(0);
+  const fl = document.getElementById('sf');
+  fl.className=''; void fl.offsetWidth; fl.className='on';
+  const pop = document.createElement('div');
+  pop.className='score-pop'; pop.textContent=`+${pts}`;
+  pop.style.cssText='top:35%;left:50%;transform:translateX(-50%);position:absolute';
+  document.querySelector('.main').appendChild(pop);
+  setTimeout(()=>pop.remove(), 1000);
+  setInst(`<strong>Слияние #${fusionCount}!</strong> Отлично — снова найди третий круг и держи ${HOLD_REQUIRED}с`);
+}
+
+function finishGame() {
+  isRunning = false; clearInterval(timerInt); cancelAnimationFrame(animId);
+  const ol = document.getElementById('overlay');
+  ol.querySelector('.ov-title').textContent = '✓ Сессия завершена';
+  ol.querySelector('.ov-sub').innerHTML = `Слияний: <strong>${fusionCount}</strong> · Очков: <strong>${score}</strong>`;
+  document.querySelector('.howto').style.display = 'none';
+  document.querySelector('.tip-box').style.display = 'none';
+  document.getElementById('start-btn').textContent = 'ЕЩЁ РАЗ';
+  ol.style.display = 'flex';
+  saveStats();
+}
+
+function setInst(html) { document.getElementById('inst').innerHTML = html; }
+
+// ─────────────────────────────────────────────
+// INPUT
+// ─────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (!isRunning) return;
+  if (e.code === 'Space') {
+    e.preventDefault();
+    if (!isFusing) {
+      isFusing = true; holdStart = Date.now();
+      setInst(`<strong>Держи слияние!</strong> Не двигай взгляд. Отпусти пробел если потерял.`);
+    }
+  }
+  if (e.code === 'ArrowLeft')  { gapPx = Math.max(0, gapPx - 4); resize(); }
+  if (e.code === 'ArrowRight') { gapPx = Math.min(300, gapPx + 4); resize(); }
+});
+
+document.addEventListener('keyup', e => {
+  if (!isRunning || e.code !== 'Space') return;
+  if (isFusing) {
+    isFusing = false; holdStart = null;
+    const pct = parseFloat(document.getElementById('mf').style.width) || 0;
+    if (pct < 95) {
+      setMeter(0);
+      setInst(`Слияние потеряно. Расслабь взгляд, потом снова уйди "за экран".<br><strong>Пробел</strong> — когда снова почувствуешь третий круг.`);
+    }
+  }
+});
+
+// Touch
+const cr = document.getElementById('circles-row');
+cr.addEventListener('touchstart', e=>{ e.preventDefault(); if(!isRunning)return; isFusing=true; holdStart=Date.now(); },{passive:false});
+cr.addEventListener('touchend',   e=>{ if(!isRunning)return; isFusing=false; holdStart=null; const p=parseFloat(document.getElementById('mf').style.width)||0; if(p<95)setMeter(0); });
+
+// Wheel — adjust gap
+document.querySelector('.main').addEventListener('wheel', e=>{
+  e.preventDefault();
+  gapPx = Math.max(0, Math.min(300, gapPx - e.deltaY * 0.3));
+  resize();
+},{passive:false});
+
+// Settings
+document.getElementById('method-btns').addEventListener('click', e=>{
+  const b=e.target.closest('[data-method]'); if(!b)return;
+  method=b.dataset.method;
+  document.querySelectorAll('#method-btns .btn').forEach(x=>x.classList.remove('active')); b.classList.add('active');
+  // Key fix: divergence needs circles WIDER than IPD, convergence NARROWER
+  if (method === 'parallel') {
+    gapW = 120; // wider — eyes must diverge outward
+    document.getElementById('inst').innerHTML =
+      `Расфокусируй взгляд "сквозь" экран вдаль — как будто смотришь на горизонт.<br>
+       Круги <strong>специально дальше</strong> нормы — тренируем расхождение глаз.<br>
+       Третий круг появится между ними когда глаза разойдутся достаточно.`;
+  } else {
+    gapW = 20; // narrower — eyes converge inward
+    document.getElementById('inst').innerHTML =
+      `Смотри <strong>между</strong> кругами — как будто смотришь сквозь экран.<br>
+       Нажми <strong>пробел</strong> и держи когда почувствуешь слияние.`;
+  }
+  setSizes(); redraw();
+});
+document.getElementById('pat-btns').addEventListener('click', e=>{
+  const b=e.target.closest('[data-pat]'); if(!b)return;
+  patType=b.dataset.pat;
+  document.querySelectorAll('#pat-btns .btn').forEach(x=>x.classList.remove('active')); b.classList.add('active');
+  draw();
+});
+document.getElementById('dur-btns').addEventListener('click', e=>{
+  const b=e.target.closest('[data-dur]'); if(!b)return;
+  sessionDur=parseInt(b.dataset.dur);
+  document.querySelectorAll('#dur-btns .btn').forEach(x=>x.classList.remove('active')); b.classList.add('active');
+});
+document.getElementById('start-btn').addEventListener('click', startGame);
+
+// ─────────────────────────────────────────────
+// STATS
+// ─────────────────────────────────────────────
+function saveStats() {
+  const s=JSON.parse(localStorage.getItem('eyegym_stats')||'{}');
+  s.sessions=(s.sessions||0)+1; s.minutes=(s.minutes||0)+Math.round(sessionDur/60);
+  const today=new Date().toDateString();
+  if(s.today_date!==today){s.today_date=today;s.today_exercises=[];s.streak=(s.streak||0)+1;}
+  if(!s.today_exercises.includes('Конвергенция'))s.today_exercises.push('Конвергенция');
+  localStorage.setItem('eyegym_stats',JSON.stringify(s));
+}
+
+// ─────────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────────
+resize();
+</script>
+</body>
+</html>

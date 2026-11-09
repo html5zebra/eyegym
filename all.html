@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EyeGym — тренировка зрения</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --border: #1e1e2e;
+    --text: #e8e8f0;
+    --muted: #555570;
+    --accent1: #00e5ff;   /* cyan — острота */
+    --accent2: #7c3aed;   /* violet — стерео */
+    --accent3: #10b981;   /* green — конвергенция */
+    --accent4: #f59e0b;   /* amber — счёт */
+    --accent5: #ec4899;   /* pink — Габор */
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* === GRID NOISE BACKGROUND === */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(0,229,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,229,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* === GLOW ORBS === */
+  .orb {
+    position: fixed;
+    border-radius: 50%;
+    filter: blur(120px);
+    opacity: 0.12;
+    pointer-events: none;
+    z-index: 0;
+    animation: drift 20s ease-in-out infinite;
+  }
+  .orb-1 { width: 600px; height: 600px; background: var(--accent1); top: -200px; right: -100px; animation-delay: 0s; }
+  .orb-2 { width: 400px; height: 400px; background: var(--accent2); bottom: -100px; left: -50px; animation-delay: -7s; }
+  .orb-3 { width: 300px; height: 300px; background: var(--accent5); top: 50%; left: 30%; animation-delay: -14s; }
+
+  @keyframes drift {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    33% { transform: translate(30px, -20px) scale(1.05); }
+    66% { transform: translate(-20px, 30px) scale(0.95); }
+  }
+
+  /* === HEADER === */
+  header {
+    position: relative; z-index: 10;
+    padding: 32px 48px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .logo-icon {
+    width: 40px; height: 40px;
+    position: relative;
+  }
+
+  .logo-icon svg { width: 100%; height: 100%; }
+
+  .logo-text {
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+  }
+
+  .logo-text span { color: var(--accent1); }
+
+  .header-meta {
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    color: var(--muted);
+    text-align: right;
+    line-height: 1.6;
+  }
+
+  .status-dot {
+    display: inline-block;
+    width: 6px; height: 6px;
+    background: var(--accent3);
+    border-radius: 50%;
+    margin-right: 6px;
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.7); }
+  }
+
+  /* === HERO === */
+  .hero {
+    position: relative; z-index: 10;
+    padding: 80px 48px 60px;
+    max-width: 900px;
+  }
+
+  .hero-tag {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--accent1);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .hero-tag::before {
+    content: '';
+    display: block;
+    width: 24px; height: 1px;
+    background: var(--accent1);
+  }
+
+  h1 {
+    font-size: clamp(42px, 6vw, 72px);
+    font-weight: 800;
+    line-height: 1.05;
+    letter-spacing: -2px;
+    margin-bottom: 24px;
+  }
+
+  h1 em {
+    font-style: normal;
+    color: transparent;
+    -webkit-text-stroke: 1px var(--accent1);
+  }
+
+  .hero-sub {
+    font-size: 16px;
+    color: var(--muted);
+    font-weight: 400;
+    max-width: 500px;
+    line-height: 1.7;
+    font-family: 'DM Mono', monospace;
+  }
+
+  /* === STATS BAR === */
+  .stats-bar {
+    position: relative; z-index: 10;
+    margin: 0 48px 60px;
+    padding: 20px 32px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    display: flex;
+    gap: 48px;
+  }
+
+  .stat {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .stat-val {
+    font-size: 28px;
+    font-weight: 700;
+    font-family: 'DM Mono', monospace;
+    color: var(--accent1);
+    letter-spacing: -1px;
+  }
+
+  .stat-label {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+  }
+
+  .stat-divider {
+    width: 1px;
+    background: var(--border);
+    align-self: stretch;
+  }
+
+  /* === EXERCISES GRID === */
+  .section-label {
+    position: relative; z-index: 10;
+    padding: 0 48px 24px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .grid {
+    position: relative; z-index: 10;
+    padding: 0 48px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 16px;
+    margin-bottom: 80px;
+  }
+
+  /* === EXERCISE CARD === */
+  .card {
+    position: relative;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 32px;
+    cursor: pointer;
+    overflow: hidden;
+    transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+    text-decoration: none;
+    color: inherit;
+    display: block;
+  }
+
+  .card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    border-radius: 20px;
+  }
+
+  .card:hover { transform: translateY(-4px); }
+  .card:hover::before { opacity: 1; }
+
+  /* accent glow per card */
+  .card[data-color="cyan"] { --c: var(--accent1); }
+  .card[data-color="violet"] { --c: var(--accent2); }
+  .card[data-color="green"] { --c: var(--accent3); }
+  .card[data-color="amber"] { --c: var(--accent4); }
+  .card[data-color="pink"] { --c: var(--accent5); }
+
+  .card:hover { border-color: var(--c); box-shadow: 0 0 40px -10px var(--c); }
+  .card::before { background: radial-gradient(circle at 20% 20%, color-mix(in srgb, var(--c) 8%, transparent), transparent 70%); }
+
+  /* card number */
+  .card-num {
+    position: absolute;
+    top: 28px; right: 32px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 1px;
+  }
+
+  /* icon area */
+  .card-icon {
+    width: 56px; height: 56px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 24px;
+    background: color-mix(in srgb, var(--c) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--c) 25%, transparent);
+    transition: background 0.3s, transform 0.3s;
+  }
+
+  .card:hover .card-icon {
+    background: color-mix(in srgb, var(--c) 20%, transparent);
+    transform: scale(1.08) rotate(-3deg);
+  }
+
+  .card-icon svg { width: 28px; height: 28px; }
+
+  .card-title {
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    letter-spacing: -0.3px;
+  }
+
+  .card-desc {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.6;
+    font-family: 'DM Mono', monospace;
+    margin-bottom: 24px;
+  }
+
+  .card-meta {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .tag {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    padding: 4px 10px;
+    border-radius: 100px;
+    letter-spacing: 0.5px;
+    background: color-mix(in srgb, var(--c) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--c) 20%, transparent);
+    color: color-mix(in srgb, var(--c) 80%, var(--text));
+  }
+
+  .card-arrow {
+    position: absolute;
+    bottom: 32px; right: 32px;
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--c) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--c) 30%, transparent);
+    display: flex; align-items: center; justify-content: center;
+    transition: transform 0.25s, background 0.25s;
+  }
+
+  .card:hover .card-arrow {
+    transform: translate(3px, -3px);
+    background: var(--c);
+  }
+
+  .card-arrow svg { width: 14px; height: 14px; color: var(--text); }
+
+  /* === COMING SOON CARD === */
+  .card.soon {
+    opacity: 0.45;
+    cursor: default;
+    pointer-events: none;
+  }
+
+  .soon-badge {
+    position: absolute;
+    top: 28px; left: 32px;
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    padding: 3px 8px;
+    border-radius: 100px;
+    background: color-mix(in srgb, var(--c) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--c) 20%, transparent);
+    color: var(--c);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  /* === FOOTER === */
+  footer {
+    position: relative; z-index: 10;
+    padding: 24px 48px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .footer-link {
+    color: var(--muted);
+    text-decoration: none;
+    transition: color 0.2s;
+  }
+  .footer-link:hover { color: var(--accent1); }
+
+  /* === EYE ANIMATION IN LOGO === */
+  @keyframes blink {
+    0%, 90%, 100% { transform: scaleY(1); }
+    95% { transform: scaleY(0.05); }
+  }
+
+  .eye-group { animation: blink 4s ease-in-out infinite; transform-origin: center; }
+
+  /* === RESPONSIVE === */
+  @media (max-width: 640px) {
+    header, .hero, .stats-bar, .section-label, .grid, footer {
+      padding-left: 20px; padding-right: 20px;
+    }
+    .stats-bar { margin: 0 20px 40px; gap: 24px; flex-wrap: wrap; }
+    h1 { font-size: 38px; }
+    .grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="orb orb-1"></div>
+<div class="orb orb-2"></div>
+<div class="orb orb-3"></div>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <g class="eye-group">
+          <ellipse cx="20" cy="20" rx="18" ry="12" stroke="#00e5ff" stroke-width="1.5"/>
+          <circle cx="20" cy="20" r="6" fill="#00e5ff" opacity="0.15"/>
+          <circle cx="20" cy="20" r="6" stroke="#00e5ff" stroke-width="1.5"/>
+          <circle cx="20" cy="20" r="2.5" fill="#00e5ff"/>
+          <circle cx="22" cy="18" r="1" fill="white" opacity="0.8"/>
+        </g>
+      </svg>
+    </div>
+    <div class="logo-text">Eye<span>Gym</span></div>
+  </div>
+  <div class="header-meta">
+    <div><span class="status-dot"></span>v1.0 — личная сессия</div>
+    <div id="current-time">—</div>
+  </div>
+</header>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-tag">Perceptual Learning · Dichoptic Training</div>
+  <h1>Тренировка<br>зрения <em>каждый</em><br>день</h1>
+  <p class="hero-sub">
+    Научно обоснованные упражнения для коррекции амблиопии,<br>
+    развития стереозрения и остроты зрения.
+  </p>
+</section>
+
+<!-- STATS -->
+<div class="stats-bar">
+  <div class="stat">
+    <div class="stat-val" id="stat-sessions">0</div>
+    <div class="stat-label">Сессий</div>
+  </div>
+  <div class="stat-divider"></div>
+  <div class="stat">
+    <div class="stat-val" id="stat-minutes">0</div>
+    <div class="stat-label">Минут</div>
+  </div>
+  <div class="stat-divider"></div>
+  <div class="stat">
+    <div class="stat-val" id="stat-streak">0</div>
+    <div class="stat-label">Дней подряд</div>
+  </div>
+  <div class="stat-divider"></div>
+  <div class="stat">
+    <div class="stat-val" id="stat-today">—</div>
+    <div class="stat-label">Сегодня</div>
+  </div>
+</div>
+
+<!-- EXERCISES -->
+<div class="section-label">Упражнения</div>
+
+<div class="grid">
+
+  <!-- 1. Schulte -->
+  <a class="card" data-color="cyan" href="schulte.html">
+    <span class="card-num">01</span>
+    <div class="card-icon">
+      <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--accent1)">
+        <rect x="3" y="3" width="7" height="7" rx="1.5"/>
+        <rect x="12" y="3" width="7" height="7" rx="1.5"/>
+        <rect x="21" y="3" width="4" height="7" rx="1"/>
+        <rect x="3" y="12" width="7" height="7" rx="1.5"/>
+        <rect x="12" y="12" width="7" height="7" rx="1.5"/>
+        <rect x="21" y="12" width="4" height="7" rx="1"/>
+        <rect x="3" y="21" width="22" height="4" rx="1"/>
+      </svg>
+    </div>
+    <div class="card-title">Таблица Шульте</div>
+    <div class="card-desc">Поиск чисел по порядку на фоне движущихся помех. Тренирует периферийное зрение и скорость.</div>
+    <div class="card-meta">
+      <span class="tag">внимание</span>
+      <span class="tag">периферия</span>
+      <span class="tag">3×3 → 8×8</span>
+    </div>
+    <div class="card-arrow">
+      <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M2 12 L12 2 M5 2 L12 2 L12 9"/>
+      </svg>
+    </div>
+  </a>
+
+  <!-- 2. Gabor -->
+  <a class="card" data-color="pink" href="gabor.html">
+    <span class="card-num">02</span>
+    <div class="card-icon">
+      <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--accent5)">
+        <circle cx="14" cy="14" r="10"/>
+        <ellipse cx="14" cy="14" rx="6" ry="10"/>
+        <ellipse cx="14" cy="14" rx="10" ry="4"/>
+        <circle cx="14" cy="14" r="2" fill="currentColor" opacity="0.5"/>
+      </svg>
+    </div>
+    <div class="card-title">Пятна Габора</div>
+    <div class="card-desc">Определи ориентацию решётки на зашумлённом фоне. Прямая стимуляция зрительной коры.</div>
+    <div class="card-meta">
+      <span class="tag">острота</span>
+      <span class="tag">контраст</span>
+      <span class="tag">perceptual learning</span>
+    </div>
+    <div class="card-arrow">
+      <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M2 12 L12 2 M5 2 L12 2 L12 9"/>
+      </svg>
+    </div>
+  </a>
+
+  <!-- 3. Convergence -->
+  <a class="card" data-color="green" href="vergence.html">
+    <span class="card-num">03</span>
+    <div class="card-icon">
+      <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--accent3)">
+        <circle cx="8" cy="14" r="4"/>
+        <circle cx="20" cy="14" r="4"/>
+        <path d="M12 14 L16 14" stroke-dasharray="2 2"/>
+        <path d="M4 8 L14 14 M24 8 L14 14" opacity="0.4"/>
+      </svg>
+    </div>
+    <div class="card-title">Конвергенция</div>
+    <div class="card-desc">Стереопара для тренировки сведения глаз. Смотри «сквозь» экран пока картинки не сольются.</div>
+    <div class="card-meta">
+      <span class="tag">стереозрение</span>
+      <span class="tag">fusion</span>
+      <span class="tag">бинокуляр</span>
+    </div>
+    <div class="card-arrow">
+      <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M2 12 L12 2 M5 2 L12 2 L12 9"/>
+      </svg>
+    </div>
+  </a>
+
+  <!-- 4. Count -->
+  <a class="card" data-color="amber" href="count.html">
+    <span class="card-num">04</span>
+    <div class="card-icon">
+      <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--accent4)">
+        <circle cx="8" cy="10" r="2.5"/>
+        <circle cx="14" cy="7" r="2.5"/>
+        <circle cx="20" cy="10" r="2.5"/>
+        <circle cx="10" cy="18" r="2.5"/>
+        <circle cx="18" cy="18" r="2.5"/>
+        <path d="M4 24 Q14 14 24 24" opacity="0.3"/>
+      </svg>
+    </div>
+    <div class="card-title">Счёт объектов</div>
+    <div class="card-desc">Быстрые вспышки объектов на движущемся фоне — успей сосчитать. Внимание и скорость обработки.</div>
+    <div class="card-meta">
+      <span class="tag">скорость</span>
+      <span class="tag">внимание</span>
+      <span class="tag">световые эффекты</span>
+    </div>
+    <div class="card-arrow">
+      <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M2 12 L12 2 M5 2 L12 2 L12 9"/>
+      </svg>
+    </div>
+  </a>
+
+  <!-- 5. Anaglyph -->
+  <a class="card" data-color="violet" href="anaglyph.html">
+    <span class="card-num">05</span>
+    <div class="card-icon">
+      <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--accent2)">
+        <rect x="2" y="10" width="10" height="8" rx="4"/>
+        <rect x="16" y="10" width="10" height="8" rx="4"/>
+        <path d="M12 14 L16 14"/>
+        <path d="M2 14 L0 14 M26 14 L28 14" opacity="0.5"/>
+      </svg>
+    </div>
+    <div class="card-title">Анаглифы</div>
+    <div class="card-desc">Дихоптические упражнения с красно-синими очками. Независимая стимуляция каждого глаза.</div>
+    <div class="card-meta">
+      <span class="tag">дихоптика</span>
+      <span class="tag">глубина</span>
+      <span class="tag">красно-синие очки</span>
+    </div>
+    <div class="card-arrow">
+      <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M2 12 L12 2 M5 2 L12 2 L12 9"/>
+      </svg>
+    </div>
+  </a>
+
+  <!-- 6. Muscles -->
+  <a class="card" data-color="cyan" href="muscles.html">
+    <span class="card-num">06</span>
+    <div class="card-icon">
+      <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--accent1)">
+        <circle cx="14" cy="14" r="4" fill="currentColor" opacity="0.3"/>
+        <circle cx="14" cy="14" r="4"/>
+        <path d="M14 4 Q20 9 20 14 Q20 19 14 24" opacity="0.5"/>
+        <path d="M14 4 Q8 9 8 14 Q8 19 14 24" opacity="0.5"/>
+        <circle cx="14" cy="4"  r="2.5" fill="currentColor"/>
+        <circle cx="14" cy="24" r="2.5" fill="currentColor"/>
+      </svg>
+    </div>
+    <div class="card-title">Мышцы глаза</div>
+    <div class="card-desc">Pursuit и саккады на фоне движущихся помех. Тренирует глазодвигательные мышцы и точность прыжков взгляда.</div>
+    <div class="card-meta">
+      <span class="tag">pursuit</span>
+      <span class="tag">саккады</span>
+      <span class="tag">мышцы</span>
+    </div>
+    <div class="card-arrow">
+      <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M2 12 L12 2 M5 2 L12 2 L12 9"/>
+      </svg>
+    </div>
+  </a>
+
+  <!-- 7. Vergence training -->
+  <a class="card" data-color="green" href="vergence2.html">
+    <span class="card-num">07</span>
+    <div class="card-icon">
+      <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--accent3)">
+        <circle cx="14" cy="14" r="3" fill="currentColor" opacity="0.4"/>
+        <circle cx="14" cy="14" r="7"/>
+        <circle cx="14" cy="14" r="12" stroke-dasharray="3 3" opacity="0.5"/>
+      </svg>
+    </div>
+    <div class="card-title">Вергенция</div>
+    <div class="card-desc">Looming, Facility, Jump — тренировка динамической конвергенции. Для бинокулярного зрения вдали.</div>
+    <div class="card-meta">
+      <span class="tag">looming</span>
+      <span class="tag">facility</span>
+      <span class="tag">глубина</span>
+    </div>
+    <div class="card-arrow">
+      <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M2 12 L12 2 M5 2 L12 2 L12 9"/>
+      </svg>
+    </div>
+  </a>
+
+  <!-- 8. Road signs -->
+  <a class="card" data-color="amber" href="roadsigns.html">
+    <span class="card-num">08</span>
+    <div class="card-icon">
+      <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--accent4)">
+        <circle cx="10" cy="10" r="2"/>
+        <circle cx="20" cy="20" r="6"/>
+        <path d="M11 11 L16 16" stroke-dasharray="2 2" opacity="0.5"/>
+      </svg>
+    </div>
+    <div class="card-title">Знаки на дороге</div>
+    <div class="card-desc">Один объект приближается и уходит вбок/по углам — как знак у дороги. Веди курсор точно по нему.</div>
+    <div class="card-meta">
+      <span class="tag">pursuit</span>
+      <span class="tag">приближение</span>
+      <span class="tag">для дали</span>
+    </div>
+    <div class="card-arrow">
+      <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M2 12 L12 2 M5 2 L12 2 L12 9"/>
+      </svg>
+    </div>
+  </a>
+
+  <!-- 9. Volleyball serve receive -->
+  <a class="card" data-color="amber" href="volley.html">
+    <span class="card-num">09</span>
+    <div class="card-icon">
+      <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--accent4)">
+        <circle cx="21" cy="7" r="3"/>
+        <path d="M3 20 Q12 2 21 7" stroke-dasharray="2 2" opacity="0.6"/>
+        <path d="M2 24 L26 24 M14 16 L14 24" opacity="0.5"/>
+      </svg>
+    </div>
+    <div class="card-title">Приём подачи</div>
+    <div class="card-desc">Стерео-траектория волейбольной подачи: куда упадёт (глубина отдельно от лево/право) и тайминг приёма. Анаглиф или VR Box.</div>
+    <div class="card-meta">
+      <span class="tag">глубина</span>
+      <span class="tag">траектория</span>
+      <span class="tag">VR Box</span>
+    </div>
+    <div class="card-arrow">
+      <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M2 12 L12 2 M5 2 L12 2 L12 9"/>
+      </svg>
+    </div>
+  </a>
+
+  <!-- 10. Headset dichoptic -->
+  <a class="card" data-color="violet" href="cardboard.html">
+    <span class="card-num">10</span>
+    <div class="card-icon">
+      <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--accent2)">
+        <rect x="2" y="7" width="24" height="14" rx="4"/>
+        <circle cx="9" cy="14" r="3.5"/><circle cx="19" cy="14" r="3.5"/>
+      </svg>
+    </div>
+    <div class="card-title">Шлем: детектор подавления</div>
+    <div class="card-desc">Для Cardboard/VR Box. Помехи в сильный глаз, цель в слабый, адаптивный баланс глаз. Проверка креста для настройки.</div>
+    <div class="card-meta">
+      <span class="tag">дихоптика</span>
+      <span class="tag">баланс глаз</span>
+      <span class="tag">шлем</span>
+    </div>
+    <div class="card-arrow">
+      <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M2 12 L12 2 M5 2 L12 2 L12 9"/>
+      </svg>
+    </div>
+  </a>
+
+</div>
+<footer>
+  <div>EyeGym · личная сборка</div>
+  <div style="display:flex;gap:24px">
+    <a href="#" class="footer-link">настройки</a>
+    <a href="#" class="footer-link">прогресс</a>
+  </div>
+</footer>
+
+<script>
+// === CLOCK ===
+function updateTime() {
+  const now = new Date();
+  document.getElementById('current-time').textContent =
+    now.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+}
+updateTime();
+setInterval(updateTime, 1000);
+
+// === STATS from localStorage ===
+function loadStats() {
+  const s = JSON.parse(localStorage.getItem('eyegym_stats') || '{}');
+  document.getElementById('stat-sessions').textContent = s.sessions || 0;
+  document.getElementById('stat-minutes').textContent = s.minutes || 0;
+  document.getElementById('stat-streak').textContent = s.streak || 0;
+
+  // today's exercises
+  const today = new Date().toDateString();
+  const todayList = s.today_date === today ? (s.today_exercises || []) : [];
+  document.getElementById('stat-today').textContent =
+    todayList.length > 0 ? todayList.join(', ') : '—';
+}
+loadStats();
+</script>
+</body>
+</html>
