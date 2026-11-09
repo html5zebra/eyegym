@@ -1123,6 +1123,9 @@ function feedback(color, now) {
 function frame(now) {
   if (!S.active) return;
   requestAnimationFrame(frame);
+  // iOS home-screen apps can change size after rotation without a timely resize event:
+  // keep the canvas buffer equal to its on-screen size, or everything gets squashed.
+  if (cv.clientWidth !== W || cv.clientHeight !== H) { resize(); checkOrientation(); }
   if (S.paused) return;
 
   stripeOff += 0.9; flick += 0.05;
