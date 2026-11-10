@@ -217,6 +217,8 @@
     <div class="seg" id="vbOccl"><button data-v="1">Весь</button><button data-v="0.6">60%</button><button data-v="0.4">40%</button></div>
     <p class="addlabel">Тень мяча</p>
     <div class="seg" id="vbShadow"><button data-v="1">Есть</button><button data-v="0">Нет</button></div>
+    <p class="addlabel">Где ты стоишь на приёме</p>
+    <div class="seg" id="vbPos"><button data-v="left">Слева</button><button data-v="center">По центру</button><button data-v="right">Справа</button></div>
     <p class="addlabel">Обзор</p>
     <div class="seg" id="vbFov"><button data-v="real">Как в жизни</button><button data-v="wide">Шире</button></div>
     <p class="addlabel">Высота сетки</p>
@@ -363,7 +365,7 @@ async function connectDb() {
 const cfg = Object.assign({
   weak: 'right', lensMM: 63, pxmm: 6.04, dur: 300, nod: 1, level: 4, history: [],
   mode: 'detect', voffMM: 0, sizePct: 100, fusionHistory: [], crossHistory: [], strongPct: 60, loomSpeed: 'norm',
-  stereoHistory: [], progSel: 'daily', savedAt: 0, music: 1, picsMode: 'mix', vbLevel: 'mid', vbTypes: 'all', vbOccl: 1, vbShadow: 1, netH: 2.43, vbFov: 'real',
+  stereoHistory: [], progSel: 'daily', savedAt: 0, music: 1, picsMode: 'mix', vbLevel: 'mid', vbTypes: 'all', vbOccl: 1, vbShadow: 1, netH: 2.43, vbFov: 'real', vbPos: 'center',
   programs: [{ id: 'daily', name: 'Ежедневная', items: [
     { m: 'eyes', min: 2 }, { m: 'stream', min: 5 }, { m: 'loom', min: 3 }, { m: 'road', min: 3 }, { m: 'rds', min: 2 },
   ] }],
@@ -398,6 +400,7 @@ bindSeg('vbOccl', 'vbOccl', Number);
 bindSeg('vbShadow', 'vbShadow', Number);
 bindSeg('netH', 'netH', Number);
 bindSeg('vbFov', 'vbFov', String);
+bindSeg('vbPos', 'vbPos', String);
 const LEDE = {
   detect: 'Оба глаза видят рамку и крестик в центре. Сильный глаз видит мерцающие полосы, слабый в случайный момент видит кольцо. Заметил кольцо — кивни или нажми.',
   fusion: 'Оба глаза видят одну и ту же картинку, и она медленно разъезжается. Кивни, когда начнёт двоиться. Потом картинки съезжаются обратно — кивни, когда снова станет одна.',
@@ -409,7 +412,7 @@ const PASSIVE = { stream: 1, loom: 1, jump: 1, eyes: 1, road: 1, rds: 1, neon: 1
 LEDE.road = 'Без кнопок. Едешь по дороге: разметка бежит навстречу, по сторонам проплывают столбики и знаки, всё в настоящем стерео. Смотри вперёд и по сторонам, как за рулём.';
 LEDE.neon = 'Без кнопок. Ретровейв: неоновая сетка до горизонта, закатное солнце, горы и неоновые ворота, сквозь которые ты проезжаешь. Всё в стерео, с синтвейвом.';
 LEDE.pics = 'Без кнопок. Твои картинки в трёх режимах: «Кусочки» — каждый глаз видит свои части картинки, целой она бывает только двумя глазами; «Ближе-дальше» — картинка плавно приближается и удаляется; «Слияние» — медленно разъезжается, держи её одной.';
-LEDE.volley = 'Без кнопок. Ты на приёме, соперник подаёт: планер, крученая или свеча, с реальной физикой полёта. Пока мяч летит, говори про себя, куда он упадёт. После каждой подачи — вид сверху с правильным ответом.';
+LEDE.volley = 'Без кнопок. Ты на приёме в нашем зале, соперник подаёт: планер, силовая в прыжке или свеча, с реальной физикой полёта. Читай подачу ещё по подбросу и разбегу. Пока мяч летит, говори про себя, куда он упадёт. Потом замедленный повтор сбоку и вид сверху.';
 LEDE.rds = 'Без кнопок. Поле из случайных точек, внутри спрятана фигура — увидеть её можно только стерео, одним глазом её нет. В конце каждого уровня покажу, какая была фигура, а после сессии спрошу, до какого уровня ты её видел.';
 const MODE_NAMES = { eyes: 'Мышцы глаз', stream: 'Дихоптический поток', loom: 'Приближение', road: 'Дорога',
   rds: 'Стерео-фигуры', jump: 'Ближе-дальше', detect: 'Детектор подавления', fusion: 'Фузионный резерв',
@@ -1133,334 +1136,24 @@ function picsFrame(now) {
   }
 }
 
-// ---- Volleyball: serve reading ----
-// ===== Volleyball serve physics (SI units) =====
-// World: net plane z = 0; opponent court z ∈ [-9, 0]; our court z ∈ [0, 9]; ball travels toward +z.
-const VB = { M: 0.27, R: 0.105, RHO: 1.15, G: 9.81, DT: 1 / 240 };
-VB.A = Math.PI * VB.R * VB.R;
-// Drag crisis: ~0.47 when slow, ~0.22 when fast (transition around 17 m/s ≈ 61 km/h).
-// This is why a float serve flies "flat" and then suddenly drops as it slows down.
-const vbCd = v => 0.22 + 0.25 / (1 + Math.exp((v - 17) / 1.3));
-function vbNoise(seed) {
-  const r = (k) => { const x = Math.sin(seed * 12.9898 + k * 78.233) * 43758.5453; return x - Math.floor(x); };
-  const comps = [0, 1, 2].map(k => ({ f: 0.9 + r(k) * 2.2, p: r(k + 7) * Math.PI * 2, a: 0.5 + r(k + 13) }));
-  const sum = comps.reduce((a, c) => a + c.a, 0);
-  return t => comps.reduce((a, c) => a + c.a * Math.sin(2 * Math.PI * c.f * t + c.p), 0) / sum;
+// ---- Volleyball: serve reading — the engine lives in volley.js (loaded on demand with three.js) ----
+let volleyLoading = null;
+function loadScript(src) { return new Promise(res => { const sc = document.createElement('script'); sc.src = src; sc.onload = () => res(true); sc.onerror = () => res(false); document.head.appendChild(sc); }); }
+function loadVolley() {
+  if (typeof volleyFrame === 'function' && window.THREE) return Promise.resolve(true);
+  if (volleyLoading) return volleyLoading;
+  const v = encodeURIComponent(APP_VERSION);
+  volleyLoading = (async () => {
+    let ok = window.THREE ? true : await loadScript('three.min.js?v=' + v);
+    if (!ok || !window.THREE) ok = await loadScript('https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js');
+    if (!ok || !window.THREE) { volleyLoading = null; return false; }
+    ok = await loadScript('volley.js?v=' + v);
+    if (!ok) volleyLoading = null;
+    return ok;
+  })();
+  return volleyLoading;
 }
-function vbAccel(s, t, sv, out) {
-  const vx = s[3], vy = s[4], vz = s[5];
-  const v = Math.hypot(vx, vy, vz) || 1e-6;
-  const q = 0.5 * VB.RHO * VB.A * v * v / VB.M;            // dynamic pressure × area / mass
-  let ax = -q * vbCd(v) * vx / v, ay = -q * vbCd(v) * vy / v - VB.G, az = -q * vbCd(v) * vz / v;
-  const w = sv.spin;                                        // spin vector, rad/s
-  const wm = Math.hypot(w[0], w[1], w[2]);
-  if (wm > 0.01) {                                          // Magnus: F ∝ ω × v
-    const S = VB.R * wm / v, Cl = Math.min(0.32, 1.1 * S);
-    let cx = w[1] * vz - w[2] * vy, cy = w[2] * vx - w[0] * vz, cz = w[0] * vy - w[1] * vx;
-    const cm = Math.hypot(cx, cy, cz) || 1e-6;
-    ax += q * Cl * cx / cm; ay += q * Cl * cy / cm; az += q * Cl * cz / cm;
-  }
-  if (sv.knuckle > 0) {                                     // float serve: unsteady side/vertical forces
-    const amp = sv.knuckle * (1 + 1.5 * Math.exp(-Math.pow((v - 17) / 3, 2)));
-    ax += q * amp * sv.nx(t); ay += q * amp * 0.6 * sv.ny(t);
-  }
-  out[0] = vx; out[1] = vy; out[2] = vz; out[3] = ax; out[4] = ay; out[5] = az;
-}
-// Integrate one serve (RK4). Returns sampled path, landing point/time, net contact.
-function vbSimulate(p0, v0, sv, netH) {
-  const s = [p0[0], p0[1], p0[2], v0[0], v0[1], v0[2]];
-  const k1 = new Array(6), k2 = new Array(6), k3 = new Array(6), k4 = new Array(6), tmp = new Array(6);
-  const pts = [[0, s[0], s[1], s[2]]];
-  let t = 0, net = false, crossed = false;
-  const dt = VB.DT;
-  for (let i = 0; i < 2400; i++) {
-    vbAccel(s, t, sv, k1);
-    for (let j = 0; j < 6; j++) tmp[j] = s[j] + k1[j] * dt / 2; vbAccel(tmp, t + dt / 2, sv, k2);
-    for (let j = 0; j < 6; j++) tmp[j] = s[j] + k2[j] * dt / 2; vbAccel(tmp, t + dt / 2, sv, k3);
-    for (let j = 0; j < 6; j++) tmp[j] = s[j] + k3[j] * dt; vbAccel(tmp, t + dt, sv, k4);
-    const prevZ = s[2], prevY = s[1];
-    for (let j = 0; j < 6; j++) s[j] += dt / 6 * (k1[j] + 2 * k2[j] + 2 * k3[j] + k4[j]);
-    t += dt;
-    if (!crossed && prevZ < 0 && s[2] >= 0) {
-      crossed = true;
-      const yAtNet = prevY + (s[1] - prevY) * (0 - prevZ) / (s[2] - prevZ);
-      if (yAtNet < netH + VB.R && Math.abs(s[0]) < 5) net = true;
-    }
-    if (s[1] <= VB.R) {                                     // floor contact: interpolate exact landing
-      const f = (pts[pts.length - 1][2] - VB.R) / (pts[pts.length - 1][2] - s[1]);
-      const prev = pts[pts.length - 1];
-      const land = { t: prev[0] + f * dt, x: prev[1] + f * (s[0] - prev[1]), z: prev[3] + f * (s[2] - prev[3]) };
-      pts.push([land.t, land.x, VB.R, land.z]);
-      return { pts, land, net, crossed, v: [s[3], s[4], s[5]] };
-    }
-    pts.push([t, s[0], s[1], s[2]]);
-  }
-  return { pts, land: null, net, crossed, v: [s[3], s[4], s[5]] };
-}
-// Serve types. Speeds are at contact; tuned for recreational-to-strong amateur play.
-const VB_TYPES = {
-  float:   { name: 'планер',   v: [13, 19],   spin: 0,   knuckle: 0.15, h: [2.6, 3.1], maxApex: 4.6 },
-  topspin: { name: 'крученая', v: [16.5, 24], spin: 38,  knuckle: 0,    h: [2.9, 3.3], maxApex: 4.8 },
-  lob:     { name: 'свеча',    v: [12.5, 15.5], spin: -6, knuckle: 0,   h: [2.0, 2.5], high: true, maxApex: 9 },
-};
-// Pick a target, then solve launch elevation (bisection) and aim so the ball lands there.
-function vbMakeServe(opts, rnd = Math.random) {
-  const lvl = { easy: 0.88, mid: 1, hard: 1.12 }[opts.level] || 1;
-  for (let attempt = 0; attempt < 60; attempt++) {
-    const pool = opts.types === 'all' ? ['float', 'float', 'topspin', 'lob'] : [opts.types];
-    const key = pool[Math.floor(rnd() * pool.length)], T = VB_TYPES[key];
-    const out = rnd() < (opts.outShare ?? 0.15);
-    let tx, tz;
-    if (!out) { tx = (rnd() * 2 - 1) * 4.2; tz = 0.8 + rnd() * 8.0; }
-    else if (rnd() < 0.6) { tx = (rnd() * 2 - 1) * 4; tz = 9.3 + rnd() * 1.6; }          // long
-    else { tx = (rnd() < 0.5 ? -1 : 1) * (4.75 + rnd() * 1.2); tz = 2 + rnd() * 6.5; } // wide
-    const p0 = [(rnd() * 2 - 1) * 3.5, T.h[0] + rnd() * (T.h[1] - T.h[0]), -(9 + 0.8 + rnd() * 1.8)];
-    const speed = (T.v[0] + rnd() * (T.v[1] - T.v[0])) * lvl;
-    const seed = rnd() * 1000;
-    const sv = { spin: [T.spin, 0, 0], knuckle: T.knuckle, nx: vbNoise(seed), ny: vbNoise(seed + 50) };
-    let az = Math.atan2(tx - p0[0], tz - p0[2]);
-    const want = Math.hypot(tx - p0[0], tz - p0[2]);
-    const launch = (el, a) => [speed * Math.cos(el) * Math.sin(a), speed * Math.sin(el), speed * Math.cos(el) * Math.cos(a)];
-    const dist = r => r.land ? Math.hypot(r.land.x - p0[0], r.land.z - p0[2]) : 1e9;
-    const noKnuckle = { ...sv, knuckle: 0 };                 // aim as if no wobble; the wobble is the surprise
-    // range peaks at some elevation: find it, then bisect on the low branch (driven serves)
-    // or on the high branch (lobs), where distance changes monotonically
-    let eMax = -0.25, dMax = -1;
-    for (let e = -0.25; e <= 1.3; e += 0.1) { const d = dist(vbSimulate(p0, launch(e, az), noKnuckle, opts.netH)); if (d < 1e8 && d > dMax) { dMax = d; eMax = e; } }
-    if (dMax < want) continue;                                    // too slow to reach the target
-    let lo, hi, res = null;
-    if (T.high) { lo = eMax; hi = 1.35; if (dist(vbSimulate(p0, launch(hi, az), noKnuckle, opts.netH)) > want) continue; }
-    else { lo = -0.25; hi = eMax; if (dist(vbSimulate(p0, launch(lo, az), noKnuckle, opts.netH)) > want) continue; }
-    for (let i = 0; i < 22; i++) {
-      const mid = (lo + hi) / 2;
-      const short = dist(vbSimulate(p0, launch(mid, az), noKnuckle, opts.netH)) < want;
-      if (T.high ? !short : short) lo = mid; else hi = mid;
-    }
-    const el = (lo + hi) / 2;
-    res = vbSimulate(p0, launch(el, az), sv, opts.netH);
-    if (!res.land || res.net || !res.crossed) continue;
-    const landedOut = Math.abs(res.land.x) > 4.5 + VB.R || res.land.z > 9 + VB.R;
-    const apex = Math.max(...res.pts.map(p => p[2]));
-    if (apex > T.maxApex) continue;
-    return { key, name: T.name, speed, kmh: Math.round(speed * 3.6), p0, el, az, sv, res, apex, out: landedOut,
-             target: { x: tx, z: tz } };
-  }
-  return null;
-}
-
-// ---------- Scene (three.js) ----------
-const RECV = { x: 0, z: 7.2, eye: 1.45 };   // receiver stands near the back of our court, eyes at ready-stance height
-const VBT = { TOSS: 0.9, THINK: 1.4, REVEAL: 4.2, GAP: 0.7, EYE: 0.034 };
-let VBS = null;
-function loadThree() {
-  if (window.THREE) return Promise.resolve(true);
-  const add = src => new Promise(res => { const sc = document.createElement('script'); sc.src = src; sc.onload = () => res(true); sc.onerror = () => res(false); document.head.appendChild(sc); });
-  return add('three.min.js').then(ok => ok && window.THREE ? true : add('https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js'));
-}
-function vbCanvasTex(w, h, draw) {
-  const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h);
-  const t = new THREE.CanvasTexture(c); return t;
-}
-function vbBuildScene() {
-  const T = THREE;
-  const renderer = new T.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
-  renderer.setPixelRatio(1);
-  const scene = new T.Scene();
-  scene.background = new T.Color(0x0e1218);
-  scene.fog = new T.Fog(0x0e1218, 30, 70);
-  scene.add(new T.HemisphereLight(0xe4ecff, 0x2a2018, 0.9));
-  const sun = new T.DirectionalLight(0xffffff, 0.65); sun.position.set(4, 14, 6); scene.add(sun);
-  const lam = c => new T.MeshLambertMaterial({ color: c });
-  const plane = (w, h, c, x, z, y) => { const m = new T.Mesh(new T.PlaneGeometry(w, h), lam(c)); m.rotation.x = -Math.PI / 2; m.position.set(x, y, z); scene.add(m); return m; };
-  plane(70, 90, 0x1b3150, 0, 0, 0);
-  plane(9, 18, 0xc8682a, 0, 0, 0.002);
-  const LW = 0.05, line = (w, h, x, z) => plane(w, h, 0xf2f2f2, x, z, 0.004);
-  line(LW, 18, -4.5 + LW / 2, 0); line(LW, 18, 4.5 - LW / 2, 0);
-  line(9, LW, 0, -9 + LW / 2); line(9, LW, 0, 9 - LW / 2); line(9, LW, 0, 0); line(9, LW, 0, -3); line(9, LW, 0, 3);
-  // back wall far behind the server, so depth has a reference
-  const wall = new T.Mesh(new T.PlaneGeometry(40, 8), lam(0x25324a)); wall.position.set(0, 4, -22); scene.add(wall);
-  // net
-  const netH = cfg.netH;
-  const postG = new T.CylinderGeometry(0.05, 0.05, netH + 0.15, 12);
-  [-5.2, 5.2].forEach(x => { const p = new T.Mesh(postG, lam(0x9aa3ad)); p.position.set(x, (netH + 0.15) / 2, 0); scene.add(p); });
-  const band = new T.Mesh(new T.BoxGeometry(10.4, 0.07, 0.02), lam(0xffffff)); band.position.set(0, netH - 0.035, 0); scene.add(band);
-  const netTex = vbCanvasTex(512, 64, (c, w, h) => {
-    c.clearRect(0, 0, w, h); c.strokeStyle = 'rgba(20,20,20,0.9)'; c.lineWidth = 2;
-    for (let x = 0; x <= w; x += 6) { c.beginPath(); c.moveTo(x, 0); c.lineTo(x, h); c.stroke(); }
-    for (let y = 0; y <= h; y += 6) { c.beginPath(); c.moveTo(0, y); c.lineTo(w, y); c.stroke(); }
-  });
-  const net = new T.Mesh(new T.PlaneGeometry(10, 0.93), new T.MeshBasicMaterial({ map: netTex, transparent: true, side: T.DoubleSide }));
-  net.position.set(0, netH - 0.07 - 0.465, 0); scene.add(net);
-  const antG = new T.CylinderGeometry(0.01, 0.01, 1.8, 8);
-  [-4.5, 4.5].forEach(x => { const a = new T.Mesh(antG, lam(0xe53935)); a.position.set(x, netH - 0.1, 0); scene.add(a); });
-  // server
-  const server = new T.Group(), jersey = lam(0x3a6fd8), skin = lam(0x9a6b4f), shorts = lam(0x1d2230);
-  const torso = new T.Mesh(new T.CylinderGeometry(0.2, 0.16, 0.62, 14), jersey); torso.position.y = 1.32; server.add(torso);
-  const hips = new T.Mesh(new T.CylinderGeometry(0.17, 0.17, 0.22, 14), shorts); hips.position.y = 0.95; server.add(hips);
-  [-0.09, 0.09].forEach(x => { const l = new T.Mesh(new T.CylinderGeometry(0.065, 0.055, 0.85, 10), skin); l.position.set(x, 0.43, 0); server.add(l); });
-  const head = new T.Mesh(new T.SphereGeometry(0.115, 16, 12), skin); head.position.y = 1.78; server.add(head);
-  const arm = new T.Group(); arm.position.set(0.24, 1.58, 0);
-  const armM = new T.Mesh(new T.CylinderGeometry(0.045, 0.04, 0.68, 10), skin); armM.position.y = 0.34; arm.add(armM);
-  server.add(arm);
-  const arm2 = new T.Mesh(new T.CylinderGeometry(0.045, 0.04, 0.62, 10), skin); arm2.position.set(-0.24, 1.3, 0); server.add(arm2);
-  scene.add(server);
-  // ball: generic three-colour panel ball
-  const ballTex = vbCanvasTex(512, 256, (c, w, h) => {
-    const cols = ['#f5c400', '#1f4fbf', '#ffffff'];
-    for (let i = 0; i < 9; i++) {
-      c.fillStyle = cols[i % 3]; c.beginPath();
-      const y0 = i * h / 9;
-      c.moveTo(0, y0);
-      for (let x = 0; x <= w; x += 8) c.lineTo(x, y0 + Math.sin(x / w * Math.PI * 4 + i) * 8);
-      c.lineTo(w, h); c.lineTo(0, h); c.closePath(); c.fill();
-    }
-  });
-  const ball = new T.Mesh(new T.SphereGeometry(VB.R, 32, 18), new T.MeshLambertMaterial({ map: ballTex }));
-  scene.add(ball);
-  const shadow = new T.Mesh(new T.CircleGeometry(VB.R * 1.15, 24), new T.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.35, depthWrite: false }));
-  shadow.rotation.x = -Math.PI / 2; scene.add(shadow);
-  const ring = new T.Mesh(new T.RingGeometry(0.2, 0.3, 36), new T.MeshBasicMaterial({ color: 0xffd24a, side: T.DoubleSide }));
-  ring.rotation.x = -Math.PI / 2; ring.visible = false; scene.add(ring);
-  const me = new T.Mesh(new T.RingGeometry(0.3, 0.34, 40), new T.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.3, side: T.DoubleSide }));
-  me.rotation.x = -Math.PI / 2; me.position.set(RECV.x, 0.006, RECV.z); scene.add(me);
-  const camera = new T.PerspectiveCamera(60, 1, 0.05, 150);
-  return { renderer, scene, camera, ball, shadow, ring, server, arm, N: 0, netH };
-}
-function vbRenderEye(f, ex, eye) {
-  const V = VBS, dpr = cv.width / W, N = Math.round(2 * f.b * dpr);
-  if (V.N !== N) { V.renderer.setSize(N, N, false); V.N = N; }
-  const Fp = FZ.FOCAL_MM * cfg.pxmm;
-  // "real": true angles through the lens (correct size and stereo); "wide": more of the court, slightly minified
-  V.camera.fov = cfg.vbFov === 'wide' ? 82 : 2 * Math.atan(f.b / Fp) * 180 / Math.PI;
-  V.camera.aspect = 1; V.camera.updateProjectionMatrix();
-  V.camera.position.set(RECV.x + ex, RECV.eye, RECV.z);   // parallel cameras → zero disparity at infinity
-  V.camera.rotation.set(0, 0, 0);
-  V.renderer.render(V.scene, V.camera);
-  ctx.save();
-  ctx.drawImage(V.renderer.domElement, f.cx - f.b, f.cy - f.b, 2 * f.b, 2 * f.b);
-  const A = eyeAlpha(eye);
-  if (A < 1) { ctx.fillStyle = `rgba(0,0,0,${1 - A})`; ctx.fillRect(f.cx - f.b, f.cy - f.b, 2 * f.b, 2 * f.b); }
-  ctx.restore();
-}
-function vbPosAt(sv, t) {
-  const pts = sv.res.pts, tl = sv.res.land.t;
-  if (t <= tl) {
-    let lo = 0, hi = pts.length - 1;
-    while (hi - lo > 1) { const m = (lo + hi) >> 1; if (pts[m][0] <= t) lo = m; else hi = m; }
-    const a = pts[lo], b = pts[hi], k = b[0] > a[0] ? (t - a[0]) / (b[0] - a[0]) : 0;
-    return [a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k, a[3] + (b[3] - a[3]) * k];
-  }
-  // after landing: one damped bounce, for the eye only
-  const v = sv.res.v, dt = t - tl, vy = Math.abs(v[1]) * 0.5;
-  return [sv.res.land.x + v[0] * 0.6 * dt, Math.max(VB.R, VB.R + vy * dt - 0.5 * VB.G * dt * dt), sv.res.land.z + v[2] * 0.6 * dt];
-}
-function vbDescribe(sv) {
-  const L = sv.res.land, dz = L.z - RECV.z, dx = L.x - RECV.x;
-  const f = v => Math.abs(v).toFixed(1).replace('.', ',');
-  let where;
-  if (sv.out) where = (L.z > 9 + VB.R ? 'аут, длинная' : 'аут, в сторону') + ' — пропусти';
-  else {
-    const d = dz < -0.4 ? `ближе на ${f(dz)} м` : dz > 0.4 ? `дальше на ${f(dz)} м` : 'прямо на тебя';
-    const s2 = dx < -0.4 ? `, левее на ${f(dx)} м` : dx > 0.4 ? `, правее на ${f(dx)} м` : '';
-    where = d + s2;
-  }
-  const pace = sv.kmh < 55 ? 'медленная' : sv.kmh < 70 ? 'средняя' : 'быстрая';
-  return { where, what: `${sv.name} · ${sv.kmh} км/ч · ${pace}` };
-}
-function vbDrawMap(f, sv) {
-  const L = sv.res.land, size = f.b * 1.5, x0 = f.cx - size / 2, y0 = f.cy - size * 0.42;
-  const X = x => x0 + (x + 6.5) / 13 * size, Y = z => y0 + (z + 0.5) / 12 * size * 0.92;
-  ctx.save();
-  ctx.fillStyle = 'rgba(8,10,14,0.82)'; ctx.fillRect(f.cx - f.b * 0.92, f.cy - f.b * 0.92, f.b * 1.84, f.b * 1.84);
-  ctx.fillStyle = '#c8682a'; ctx.fillRect(X(-4.5), Y(0), X(4.5) - X(-4.5), Y(9) - Y(0));
-  ctx.strokeStyle = '#f2f2f2'; ctx.lineWidth = 2; ctx.strokeRect(X(-4.5), Y(0), X(4.5) - X(-4.5), Y(9) - Y(0));
-  ctx.beginPath(); ctx.moveTo(X(-4.5), Y(3)); ctx.lineTo(X(4.5), Y(3)); ctx.stroke();
-  ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(X(-5.2), Y(0)); ctx.lineTo(X(5.2), Y(0)); ctx.stroke();
-  // path over our court
-  ctx.setLineDash([5, 5]); ctx.strokeStyle = 'rgba(255,210,74,0.8)'; ctx.lineWidth = 2; ctx.beginPath();
-  sv.res.pts.filter(q => q[3] >= 0).forEach((q, i) => (i ? ctx.lineTo(X(q[1]), Y(q[3])) : ctx.moveTo(X(q[1]), Y(q[3]))));
-  ctx.stroke(); ctx.setLineDash([]);
-  // me
-  ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(X(RECV.x), Y(RECV.z), Math.max(4, f.b * 0.035), 0, Math.PI * 2); ctx.fill();
-  // landing
-  const r = Math.max(6, f.b * 0.05), lx = X(L.x), ly = Y(L.z);
-  ctx.strokeStyle = sv.out ? '#ff5a4f' : '#ffd24a'; ctx.lineWidth = 4;
-  ctx.beginPath(); ctx.moveTo(lx - r, ly - r); ctx.lineTo(lx + r, ly + r); ctx.moveTo(lx + r, ly - r); ctx.lineTo(lx - r, ly + r); ctx.stroke();
-  const d = vbDescribe(sv), fs = Math.max(12, f.b * 0.085);
-  ctx.fillStyle = '#ffffff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.font = `700 ${fs}px -apple-system, system-ui, sans-serif`; ctx.fillText(d.where, f.cx, f.cy - f.b * 0.8);
-  ctx.font = `500 ${fs * 0.85}px -apple-system, system-ui, sans-serif`; ctx.fillStyle = '#cfd6e2'; ctx.fillText(d.what, f.cx, f.cy + f.b * 0.8);
-  ctx.restore();
-}
-function vbNewServe(now) {
-  const sv = vbMakeServe({ level: cfg.vbLevel, types: cfg.vbTypes, netH: cfg.netH, outShare: 0.12 });
-  S.vb.serve = sv; S.vb.phase = 'toss'; S.vb.t0 = now; S.vb.logged = false; S.vb.thud = false;
-  if (VBS) { VBS.server.position.set(sv.p0[0] + 0.25, 0, sv.p0[2] - 0.35); VBS.ring.visible = false; }
-}
-function volleyFrame(now) {
-  const F = eyeFrames();
-  if (!window.THREE) {
-    [F.left, F.right].forEach(f => { drawFrame(f, 'rgba(230,230,230,0.6)'); drawText(f, 'Не загрузился 3D-движок.\nПроверь интернет\nи перезапусти.', Math.max(13, f.b * 0.09)); });
-    return;
-  }
-  if (!VBS || VBS.netH !== cfg.netH) VBS = vbBuildScene();
-  if (!S.vb) { S.vb = { n: 0, lastT: now }; vbNewServe(now); }
-  const vb = S.vb, sv = vb.serve, V = VBS;
-  const dt = Math.min(0.1, (now - vb.lastT) / 1000); vb.lastT = now;
-  const t = (now - vb.t0) / 1000;
-  const tl = sv.res.land.t, occl = cfg.vbOccl;
-  let pos, visible = true, label = '';
-
-  if (vb.phase === 'toss') {
-    const u = Math.min(1, t / VBT.TOSS);
-    pos = [sv.p0[0], sv.p0[1] - 1.0 + 1.0 * (1 - (1 - u) * (1 - u)), sv.p0[2]];
-    V.arm.rotation.x = -0.3 - 2.4 * u;                 // arm cocks back during the toss
-    if (u >= 1) { vb.phase = 'flight'; vb.t0 = now; beep(180, 60); }
-  } else if (vb.phase === 'flight') {
-    pos = vbPosAt(sv, t);
-    V.arm.rotation.x = -2.7 + Math.min(1, t / 0.25) * 3.4; // follow-through
-    visible = occl >= 1 || t <= occl * tl;   // with full view the bounce stays visible
-    if (!vb.thud && t >= tl && visible) { vb.thud = true; beep(90, 90); }
-    if (t >= tl + (occl < 1 ? 0.05 : 0.5)) { vb.phase = occl < 1 ? 'think' : 'reveal'; vb.t0 = now; }
-  } else if (vb.phase === 'think') {
-    pos = vbPosAt(sv, tl); visible = false; label = 'куда?';
-    if (t >= VBT.THINK) { vb.phase = 'reveal'; vb.t0 = now; }
-  } else if (vb.phase === 'reveal') {
-    pos = vbPosAt(sv, tl);
-    if (!vb.logged) {
-      vb.logged = true; vb.n++;
-      const d = vbDescribe(sv);
-      (S.vbLog = S.vbLog || []).push(`${S.vbLog.length + 1}. ${d.what} → ${d.where}`);
-    }
-    if (t >= VBT.REVEAL) { vb.phase = 'gap'; vb.t0 = now; }
-  } else {
-    pos = vbPosAt(sv, tl); visible = false;
-    if (t >= VBT.GAP) vbNewServe(now);
-  }
-
-  V.ball.visible = visible;
-  V.ball.position.set(pos[0], pos[1], pos[2]);
-  if (sv.sv.spin[0]) V.ball.rotation.x += sv.sv.spin[0] * dt * (vb.phase === 'flight' ? 1 : 0); // a float serve does not rotate
-  V.shadow.visible = visible && !!cfg.vbShadow;
-  const hgt = Math.max(0, pos[1] - VB.R);
-  V.shadow.position.set(pos[0], 0.006, pos[2]);
-  V.shadow.scale.setScalar(1 + hgt * 0.35); V.shadow.material.opacity = 0.38 / (1 + hgt * 0.5);
-  if (vb.phase === 'reveal') { V.ring.visible = true; V.ring.position.set(sv.res.land.x, 0.007, sv.res.land.z); }
-
-  vbRenderEye(F.left, -VBT.EYE, 'left');
-  vbRenderEye(F.right, VBT.EYE, 'right');
-  if (vb.phase === 'reveal') { vbDrawMap(F.left, sv); vbDrawMap(F.right, sv); }
-  drawFrame(F.left, 'rgba(230,230,230,0.7)', false); drawFrame(F.right, 'rgba(230,230,230,0.7)', false);
-  if (label) { drawLabel(F.left, label); drawLabel(F.right, label); }
-}
-function vbShowLog() {
-  if (!S.vbLog || !S.vbLog.length) return;
-  const box = document.getElementById('extra');
-  box.appendChild(el('p', { className: 'hint' }, 'Подачи по порядку — сравни с тем, что говорил про себя:'));
-  const ul = el('ul', { className: 'hist' });
-  S.vbLog.forEach(x => ul.appendChild(el('li', {}, x)));
-  box.appendChild(ul);
-}
+function vbShowLog() { if (typeof window.vbShowLogImpl === 'function') window.vbShowLogImpl(); }
 
 // ---- 4. Eye muscles: figure-8 pursuit, saccades, 3D pursuit with vergence ----
 const EYES_PHASES = [
@@ -1861,7 +1554,12 @@ function frame(now) {
   if (S.mode === 'rds') { rdsFrame(now); return; }
   if (S.mode === 'neon') { neonFrame(now); return; }
   if (S.mode === 'pics') { picsFrame(now); return; }
-  if (S.mode === 'volley') { volleyFrame(now); return; }
+  if (S.mode === 'volley') {
+    if (typeof volleyFrame === 'function') { volleyFrame(now); return; }
+    const F = eyeFrames();
+    [F.left, F.right].forEach(f => { drawFrame(f, 'rgba(230,230,230,0.6)'); drawText(f, 'Загружаю зал…', Math.max(14, f.b * 0.1)); });
+    return;
+  }
   if (S.mode === 'cross') { crossFrame(now); return; }
 
   // --- training trial state machine ---
@@ -1966,7 +1664,7 @@ function progNext(now, first) {
 async function start(mode) {
   unlockAudio();
   await enableMotion();
-  if (mode === 'volley' || (mode === 'program' && curProg().items.some(x => x.m === 'volley'))) await loadThree();
+  if (mode === 'volley' || (mode === 'program' && curProg().items.some(x => x.m === 'volley'))) await loadVolley();
   S.vbLog = [];
   S.motionEvents = 0; S.st = null; S.lm = null; S.jp = null; S.ms = null; S.rd = null; S.rw = null; S.nw = null; S.pc = null; S.vb = null;
   S.prog = mode === 'program'
@@ -2193,7 +1891,7 @@ document.getElementById('picsInput').addEventListener('change', async e => {
 loadPics();
 
 // ---- Auto-update for the home-screen app (iOS caches it hard) ----
-const APP_VERSION = '2026.11.09-5';
+const APP_VERSION = '2026.11.10-1';
 document.getElementById('ver').textContent = 'версия ' + APP_VERSION;
 async function checkUpdate() {
   if (S.active || location.protocol === 'file:') return;
