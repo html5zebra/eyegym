@@ -63,9 +63,9 @@ function vbSimulate(p0, v0, sv, netH) {
 }
 // Serve types. Speeds are at contact; tuned for recreational-to-strong amateur play.
 const VB_TYPES = {
-  float:   { name: 'планер',   v: [13, 19],   spin: 0,   knuckle: 0.15, h: [2.15, 2.75], maxApex: 4.6 },
-  topspin: { name: 'крученая', v: [16.5, 24], spin: 38,  knuckle: 0,    h: [2.75, 3.15], maxApex: 4.8 },
-  lob:     { name: 'свеча',    v: [12.5, 15.5], spin: -6, knuckle: 0,   h: [1.0, 1.2], high: true, maxApex: 10 },
+  float:   { name: 'планер',   v: [13, 19],   spin: 0,   knuckle: 0.15, h: [2.15, 2.75], zc: [-9.45, -9.05], maxApex: 4.6 },
+  topspin: { name: 'крученая', v: [16.5, 24], spin: 38,  knuckle: 0,    h: [2.75, 3.15], zc: [-9.15, -8.75], maxApex: 4.8 },
+  lob:     { name: 'свеча',    v: [12.5, 15.5], spin: -6, knuckle: 0,   h: [1.0, 1.2], zc: [-9.5, -9.2], high: true, maxApex: 10 },
 };
 // Pick a target, then solve launch elevation (bisection) and aim so the ball lands there.
 function vbMakeServe(opts, rnd = Math.random) {
@@ -78,7 +78,7 @@ function vbMakeServe(opts, rnd = Math.random) {
     if (!out) { tx = (rnd() * 2 - 1) * 4.2; tz = 0.8 + rnd() * 8.0; }
     else if (rnd() < 0.6) { tx = (rnd() * 2 - 1) * 4; tz = 9.3 + rnd() * 1.6; }          // long
     else { tx = (rnd() < 0.5 ? -1 : 1) * (4.75 + rnd() * 1.2); tz = 2 + rnd() * 6.5; } // wide
-    const p0 = [(rnd() * 2 - 1) * 3.5, T.h[0] + rnd() * (T.h[1] - T.h[0]), -(9 + 0.8 + rnd() * 1.8)];
+    const p0 = [(rnd() * 2 - 1) * 3.5, T.h[0] + rnd() * (T.h[1] - T.h[0]), T.zc[0] + rnd() * (T.zc[1] - T.zc[0])];
     const speed = (T.v[0] + rnd() * (T.v[1] - T.v[0])) * lvl;
     const seed = rnd() * 1000;
     const sv = { spin: [T.spin, 0, 0], knuckle: T.knuckle, nx: vbNoise(seed), ny: vbNoise(seed + 50) };
@@ -414,7 +414,7 @@ function vbBuildScene() {
   ring.rotation.x = -Math.PI / 2; ring.visible = false; scene.add(ring);
   const path = new T.Line(new T.BufferGeometry(), new T.LineBasicMaterial({ color: 0xffd24a })); path.visible = false; path.frustumCulled = false; scene.add(path);
   const camera = new T.PerspectiveCamera(60, 1, 0.05, 120);
-  const side = new T.PerspectiveCamera(50, 1, 0.5, 120); side.position.set(-25, 5.2, -0.6); side.lookAt(0, 2.4, -0.6);
+  const side = new T.PerspectiveCamera(50, 1, 0.5, 120); side.position.set(-25, 5.2, 0.8); side.lookAt(0, 2.4, 0.8);
   // standing reach of the model: arm straight up, flat feet
   vbApplyPose(server, { x: 0, z: 0, shR: -Math.PI, elR: 0 });
   const hp = new T.Vector3(); server.handR.getWorldPosition(hp);
@@ -518,7 +518,7 @@ function vbDrawReveal(f, sv) {
   ctx.font = `700 ${fs}px -apple-system, system-ui, sans-serif`; ctx.fillText(d.where, f.cx, f.cy - f.b * 0.85);
   ctx.font = `500 ${fs * 0.85}px -apple-system, system-ui, sans-serif`; ctx.fillStyle = '#cfd6e2'; ctx.fillText(d.what, f.cx, f.cy + f.b * 0.87);
   // top view inset
-  const size = f.b * 0.62, x0 = f.cx + f.b * 0.3, y0 = f.cy + f.b * 0.06;
+  const size = f.b * 0.58, x0 = f.cx - f.b * 0.94, y0 = f.cy - f.b * 0.66;
   const X = x => x0 + (x + 6.5) / 13 * size, Y = z => y0 + (z + 0.5) / 12 * size;
   ctx.fillStyle = 'rgba(8,10,14,0.8)'; ctx.fillRect(x0 - 4, y0 - 4, size + 8, size + 8);
   ctx.fillStyle = '#5a3d2b'; ctx.fillRect(X(-4.5), Y(0), X(4.5) - X(-4.5), Y(9) - Y(0));

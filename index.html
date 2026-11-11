@@ -222,7 +222,7 @@
     <p class="addlabel">Обзор</p>
     <div class="seg" id="vbFov"><button data-v="real">Как в жизни</button><button data-v="wide">Шире</button></div>
     <p class="addlabel">Высота сетки</p>
-    <div class="seg" id="netH"><button data-v="2.43">2.43 м</button><button data-v="2.24">2.24 м</button></div>
+    <div class="seg" id="netH"><button data-v="2.43">2.43 м</button><button data-v="2.35">2.35 м</button><button data-v="2.24">2.24 м</button></div>
   </section>
 
   <section id="picsSec">
@@ -1891,7 +1891,7 @@ document.getElementById('picsInput').addEventListener('change', async e => {
 loadPics();
 
 // ---- Auto-update for the home-screen app (iOS caches it hard) ----
-const APP_VERSION = '2026.11.10-1';
+const APP_VERSION = '2026.11.10-2';
 document.getElementById('ver').textContent = 'версия ' + APP_VERSION;
 async function checkUpdate() {
   if (S.active || location.protocol === 'file:') return;
