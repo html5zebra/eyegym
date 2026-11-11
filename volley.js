@@ -132,6 +132,7 @@ function vbTex(w, h, draw, rx, ry) {
   const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h);
   const t = new THREE.CanvasTexture(c);
   if (rx) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rx, ry); }
+  t.encoding = THREE.sRGBEncoding;
   t.anisotropy = 4;
   return t;
 }
@@ -141,22 +142,31 @@ function vbTex(w, h, draw, rx, ry) {
 function vbFigure(o) {
   const T = THREE, g = new T.Group();
   const M = c => new T.MeshStandardMaterial({ color: c, roughness: 0.85 });
-  const mJ = M(o.jersey), mS = M(o.shorts), mSk = M(o.skin), mSh = M(0xf2f2f2), mPad = M(0x15171c), mHair = M(o.hair || 0x1a1410);
+  const mJ = M(o.jersey), mS = M(o.shorts), mSk = M(o.skin), mSh = M(0xf2f2f2), mPad = M(0x15171c), mHair = M(o.hair || 0x1a1410), mSole = M(0x2a2c31);
+  mSk.roughness = 0.6;
   const limb = (len, r, mat) => { const m = new T.Mesh(new T.CapsuleGeometry(r, Math.max(0.01, len - 2 * r), 4, 10), mat); m.position.y = -len / 2; m.castShadow = true; return m; };
   const hips = new T.Group(); hips.position.y = 0.96; g.add(hips);
   const pelvis = new T.Mesh(new T.CapsuleGeometry(0.13, 0.14, 4, 12), mS); pelvis.rotation.z = Math.PI / 2; pelvis.castShadow = true; hips.add(pelvis);
   const spine = new T.Group(); hips.add(spine);
   const torso = new T.Mesh(new T.CapsuleGeometry(0.165, 0.3, 4, 14), mJ); torso.position.y = 0.3; torso.scale.set(1.18, 1, 0.72); torso.castShadow = true; spine.add(torso);
+  const yoke = new T.Mesh(new T.CapsuleGeometry(0.075, 0.3, 4, 10), mJ); yoke.rotation.z = Math.PI / 2; yoke.position.y = 0.52; yoke.castShadow = true; spine.add(yoke);
   const neck = new T.Mesh(new T.CylinderGeometry(0.045, 0.05, 0.1, 10), mSk); neck.position.y = 0.6; spine.add(neck);
+  const nose = new T.Mesh(new T.SphereGeometry(0.018, 8, 6), mSk); nose.position.set(0, 0.715, 0.1); spine.add(nose);
+  [-1, 1].forEach(sd => { const ear = new T.Mesh(new T.SphereGeometry(0.02, 8, 6), mSk); ear.position.set(sd * 0.097, 0.72, 0); spine.add(ear); });
   const head = new T.Mesh(new T.SphereGeometry(0.105, 18, 14), mSk); head.position.y = 0.72; head.scale.set(0.92, 1.08, 1); head.castShadow = true; spine.add(head);
   const hair = new T.Mesh(new T.SphereGeometry(0.11, 18, 10, 0, Math.PI * 2, 0, Math.PI * 0.55), mHair); hair.position.set(0, 0.735, -0.012); spine.add(hair);
   const arm = side => {
     const sh = new T.Group(); sh.position.set(side * 0.215, 0.53, 0); spine.add(sh);
     sh.add(new T.Mesh(new T.SphereGeometry(0.068, 12, 10), mJ));
     sh.add(limb(0.33, 0.05, mSk));
+    const sleeve = new T.Mesh(new T.CapsuleGeometry(0.058, 0.07, 4, 10), mJ); sleeve.position.y = -0.085; sleeve.castShadow = true; sh.add(sleeve);
     const elb = new T.Group(); elb.position.y = -0.33; sh.add(elb);
-    elb.add(limb(0.28, 0.042, mSk));
-    const hand = new T.Mesh(new T.SphereGeometry(0.052, 10, 8), mSk); hand.position.y = -0.33; hand.scale.set(0.8, 1.15, 1); elb.add(hand);
+    const fore = new T.Mesh(new T.CylinderGeometry(0.044, 0.033, 0.27, 10), mSk); fore.position.y = -0.135; fore.castShadow = true; elb.add(fore);
+    elb.add(new T.Mesh(new T.SphereGeometry(0.045, 10, 8), mSk));
+    // open palm: the reference point for contact stays at the palm centre
+    const hand = new T.Mesh(new T.BoxGeometry(0.085, 0.1, 0.03), mSk); hand.position.y = -0.33; hand.castShadow = true; elb.add(hand);
+    const fingers = new T.Mesh(new T.BoxGeometry(0.08, 0.085, 0.022), mSk); fingers.position.y = -0.09; hand.add(fingers);
+    const thumb = new T.Mesh(new T.BoxGeometry(0.025, 0.06, 0.022), mSk); thumb.position.set(-side * 0.052, -0.01, 0.005); thumb.rotation.z = -side * 0.5; hand.add(thumb);
     return { sh, elb, hand };
   };
   const leg = side => {
@@ -165,8 +175,13 @@ function vbFigure(o) {
     const sho = new T.Mesh(new T.CapsuleGeometry(0.088, 0.12, 4, 10), mS); sho.position.y = -0.12; hp.add(sho);
     const kn = new T.Group(); kn.position.y = -0.46; hp.add(kn);
     const pad = new T.Mesh(new T.SphereGeometry(0.072, 10, 8), mPad); pad.position.z = 0.012; kn.add(pad);
-    kn.add(limb(0.43, 0.056, mSk));
-    const foot = new T.Mesh(new T.BoxGeometry(0.095, 0.07, 0.25), mSh); foot.position.set(0, -0.455, 0.06); foot.castShadow = true; kn.add(foot);
+    const shin = new T.Mesh(new T.CylinderGeometry(0.06, 0.04, 0.4, 10), mSk); shin.position.y = -0.2; shin.castShadow = true; kn.add(shin);
+    const sock = new T.Mesh(new T.CylinderGeometry(0.046, 0.044, 0.1, 10), mSh); sock.position.y = -0.37; kn.add(sock);
+    // sneaker: upper + toe + dark sole (the sole is the lowest point, used to stand on the floor)
+    const foot = new T.Group(); foot.position.set(0, -0.455, 0.06); kn.add(foot);
+    const upper = new T.Mesh(new T.BoxGeometry(0.095, 0.06, 0.2), mSh); upper.position.set(0, 0.008, -0.02); upper.castShadow = true; foot.add(upper);
+    const toe = new T.Mesh(new T.SphereGeometry(0.05, 10, 8), mSh); toe.scale.set(0.95, 0.6, 1.25); toe.position.set(0, -0.004, 0.085); foot.add(toe);
+    const sole = new T.Mesh(new T.BoxGeometry(0.1, 0.018, 0.27), mSole); sole.position.set(0, -0.031, 0.005); foot.add(sole);
     return { hp, kn, foot };
   };
   const R = arm(-1), L = arm(1), lr = leg(-1), ll = leg(1);
@@ -289,7 +304,7 @@ function vbBuildHall(scene) {
       for (let k = 0; k < 3; k++) { const y = ((i * 131 + k * 197) % h); c.fillRect(x, y, w / 16 - 1, 1); }
     }
   }, HW * 2 / 4, HL * 2 / 4);
-  const floor = new T.Mesh(new T.PlaneGeometry(HW * 2, HL * 2), new T.MeshStandardMaterial({ map: wood, roughness: 0.3, metalness: 0.08 }));
+  const floor = new T.Mesh(new T.PlaneGeometry(HW * 2, HL * 2), new T.MeshStandardMaterial({ map: wood, color: 0x9c8f86, roughness: 0.34, metalness: 0.0 }));
   floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
   // floor lines
   const lineMat = c => new T.MeshBasicMaterial({ color: c });
@@ -345,8 +360,23 @@ function vbBuildHall(scene) {
     g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.25, 'rgba(255,255,245,0.85)'); g.addColorStop(1, 'rgba(255,255,240,0)');
     c.fillStyle = g; c.fillRect(0, 0, w, h);
   });
-  const glowMat = new T.SpriteMaterial({ map: glow, blending: T.AdditiveBlending, depthWrite: false });
-  const lamp = (x, y, z) => { const s = new T.Sprite(glowMat); s.position.set(x, y, z); s.scale.set(1.5, 1.5, 1); scene.add(s); };
+  const glowMat = new T.SpriteMaterial({ map: glow, blending: T.AdditiveBlending, depthWrite: false, toneMapped: false });
+  const haloMat = new T.SpriteMaterial({ map: glow, blending: T.AdditiveBlending, depthWrite: false, opacity: 0.22, toneMapped: false });
+  const lamp = (x, y, z) => {
+    const core = new T.Sprite(glowMat); core.position.set(x, y, z); core.scale.set(0.75, 0.75, 1); scene.add(core);
+    const halo = new T.Sprite(haloMat); halo.position.set(x, y, z); halo.scale.set(3.4, 3.4, 1); scene.add(halo);
+  };
+  // translucent panels under the roof glow with daylight, as in the real hall
+  const panelMat = new T.MeshBasicMaterial({ color: 0xb79cff, transparent: true, opacity: 0.55, toneMapped: false });
+  const panel = (w, x, z, ry) => { const m = new T.Mesh(new T.PlaneGeometry(w, 1.25), panelMat); m.position.set(x, 6.98, z); m.rotation.y = ry; scene.add(m); };
+  panel(HW * 2, 0, -HL + 0.03, 0); panel(HW * 2, 0, HL - 0.03, Math.PI); panel(HL * 2, -HW + 0.03, 0, Math.PI / 2); panel(HL * 2, HW - 0.03, 0, -Math.PI / 2);
+  // steel trusses under the roof
+  const beamMat = new T.MeshLambertMaterial({ color: 0x1f4a33 });
+  for (let z = -15; z <= 15; z += 6) {
+    const top = new T.Mesh(new T.BoxGeometry(HW * 2, 0.14, 0.14), beamMat); top.position.set(0, WH + 1.25, z); scene.add(top);
+    const bot = new T.Mesh(new T.BoxGeometry(HW * 2, 0.12, 0.12), beamMat); bot.position.set(0, WH + 0.35, z); scene.add(bot);
+    for (let x = -HW + 1; x < HW; x += 2) { const d = new T.Mesh(new T.BoxGeometry(0.07, 1.25, 0.07), beamMat); d.position.set(x, WH + 0.8, z); d.rotation.z = (Math.round(x) % 4 === 0 ? 1 : -1) * 0.75; scene.add(d); }
+  }
   for (let x = -10; x <= 10; x += 2.9) lamp(x, 5.0, -HL + 0.15);
   [-12, -4, 4, 12].forEach(z => lamp(HW - 0.15, 5.0, z));   // none on the wall behind the replay camera
   return { HW, HL, WH };
@@ -357,10 +387,15 @@ function vbBuildScene() {
   const renderer = new T.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
   renderer.setPixelRatio(1);
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = T.PCFSoftShadowMap; renderer.shadowMap.autoUpdate = false;
-  const scene = new T.Scene(); scene.background = new T.Color(0x24272c);
-  scene.add(new T.HemisphereLight(0xffffff, 0x4a3828, 0.62));
-  scene.add(new T.AmbientLight(0xffffff, 0.12));
-  const sun = new T.DirectionalLight(0xfff6e6, 0.85); sun.position.set(2.5, 18, 3.5); sun.castShadow = true;
+  if (T.ColorManagement) T.ColorManagement.legacyMode = false;
+  renderer.outputEncoding = T.sRGBEncoding; renderer.toneMapping = T.ACESFilmicToneMapping; renderer.toneMappingExposure = 0.95;
+  const scene = new T.Scene(); scene.background = new T.Color(0x1d2024); scene.fog = new T.Fog(0x2b3038, 26, 80);
+  scene.add(new T.HemisphereLight(0xf4f0ff, 0x5a4332, 0.48));
+  scene.add(new T.AmbientLight(0xffffff, 0.1));
+  [[-7, -18.4], [0, -18.4], [7, -18.4], [12.4, -8], [12.4, 6], [-12.4, -8], [-12.4, 6]].forEach(([x, z]) => {
+    const pl = new T.PointLight(0xfff4de, 0.16, 60, 1.3); pl.position.set(x, 5, z); scene.add(pl);
+  });
+  const sun = new T.DirectionalLight(0xfff6e6, 0.8); sun.position.set(2.5, 18, 3.5); sun.castShadow = true;
   sun.shadow.mapSize.set(1024, 1024);
   Object.assign(sun.shadow.camera, { left: -9, right: 9, top: 15, bottom: -15, near: 2, far: 30 });
   sun.shadow.bias = -0.0006; sun.shadow.radius = 3;
@@ -391,8 +426,13 @@ function vbBuildScene() {
     { jersey: 0x2a2a2e, shorts: 0x14151a, skin: 0x9c6f50 }, { jersey: 0x1b1d22, shorts: 0x2a2f3a, skin: 0xd0a583 }];
   const server = vbFigure({ jersey: 0x1b1d22, shorts: 0x14151a, skin: 0xb98a66 }); scene.add(server.g);
   const opp = [[-3, -2.4], [0.2, -2.8], [3.1, -2.3], [-2.4, -6.3], [2.2, -6.6]].map(([x, z], i) => {
-    const f = vbFigure(kits[i]); vbApplyPose(f, VB_READY(x, z, 0)); f.g.traverse(m => { m.castShadow = false; }); scene.add(f.g); return f;
+    const f = vbFigure(kits[i]); f.g.scale.setScalar([0.97, 1.04, 0.93, 1.0, 1.06][i]);
+    vbApplyPose(f, VB_READY(x, z, 0)); f.g.traverse(m => { m.castShadow = false; }); scene.add(f.g);
+    f.home = [x, z]; f.ph = i * 1.7;
+    return f;
   });
+  const blobTex = vbTex(64, 64, (c, w, h) => { const g = c.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2); g.addColorStop(0, 'rgba(0,0,0,0.55)'); g.addColorStop(1, 'rgba(0,0,0,0)'); c.fillStyle = g; c.fillRect(0, 0, w, h); });
+  opp.forEach(f => { const b = new T.Mesh(new T.PlaneGeometry(1.0, 0.8), new T.MeshBasicMaterial({ map: blobTex, transparent: true, depthWrite: false })); b.rotation.x = -Math.PI / 2; b.position.set(f.home[0], 0.009, f.home[1]); scene.add(b); });
   const me = vbFigure({ jersey: 0xe9edf2, shorts: 0x2d3340, skin: 0xb98a66 }); me.g.visible = false; scene.add(me.g);
 
   // ball: generic three-colour panel ball; the pattern makes spin (or no spin) readable
@@ -407,7 +447,7 @@ function vbBuildScene() {
     band(Math.PI / 2, h * 0.3, '#f2c200', h * 0.09); band(-Math.PI / 2, h * 0.3, '#1f4fbf', h * 0.09);
     [0, Math.PI, Math.PI / 2, -Math.PI / 2].forEach((ph, i) => { [-1, 1].forEach(sg => { c.save(); c.translate(0, sg * h * (i < 2 ? 0.1 : 0.045)); band(ph, h * 0.3, 'rgba(40,40,40,0.55)', 2); c.restore(); }); });
   });
-  const ball = new T.Mesh(new T.SphereGeometry(VB.R, 36, 20), new T.MeshStandardMaterial({ map: ballTex, roughness: 0.55 }));
+  const ball = new T.Mesh(new T.SphereGeometry(VB.R, 36, 20), new T.MeshStandardMaterial({ map: ballTex, roughness: 0.42 }));
   ball.castShadow = true; scene.add(ball);
   const ghosts = [0.2, 0.09].map(op => { const g = new T.Mesh(ball.geometry, new T.MeshBasicMaterial({ map: ballTex, transparent: true, opacity: op, depthWrite: false })); g.visible = false; scene.add(g); return g; });
   const ring = new T.Mesh(new T.RingGeometry(0.2, 0.3, 36), new T.MeshBasicMaterial({ color: 0xffd24a, side: T.DoubleSide }));
@@ -619,6 +659,12 @@ function volleyFrame(now) {
     if (t >= VBT.GAP) { vbNewServe(now); return volleyFrame(now); }
   }
 
+  V.opp.forEach(f => {
+    const w = Math.sin(now / 900 + f.ph), w2 = Math.sin(now / 1300 + f.ph * 2);
+    const p = VB_READY(f.home[0] + w * 0.04, f.home[1], 0);
+    p.lean += w2 * 0.04; p.twist = w * 0.06; p.knR += w * 0.06; p.knL -= w * 0.06; p.shR += w2 * 0.05; p.shL += w2 * 0.05;
+    vbApplyPose(f, p);
+  });
   V.ball.visible = visible; V.ball.castShadow = !!cfg.vbShadow;
   V.ball.position.set(pos[0], pos[1], pos[2]);
   // slight motion smear on fast serves, as the eye sees it
