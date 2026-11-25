@@ -35,7 +35,7 @@ function vbSimulate(p0, v0, sv, netH) {
   const s = [p0[0], p0[1], p0[2], v0[0], v0[1], v0[2]];
   const k1 = new Array(6), k2 = new Array(6), k3 = new Array(6), k4 = new Array(6), tmp = new Array(6);
   const pts = [[0, s[0], s[1], s[2]]];
-  let t = 0, net = false, crossed = false;
+  let t = 0, net = false, crossed = false, yNet = null;
   const dt = VB.DT;
   for (let i = 0; i < 2400; i++) {
     vbAccel(s, t, sv, k1);
@@ -48,6 +48,7 @@ function vbSimulate(p0, v0, sv, netH) {
     if (!crossed && prevZ < 0 && s[2] >= 0) {
       crossed = true;
       const yAtNet = prevY + (s[1] - prevY) * (0 - prevZ) / (s[2] - prevZ);
+      yNet = yAtNet;
       if (yAtNet < netH + VB.R && Math.abs(s[0]) < 5) net = true;
     }
     if (s[1] <= VB.R) {                                     // floor contact: interpolate exact landing
@@ -55,24 +56,33 @@ function vbSimulate(p0, v0, sv, netH) {
       const prev = pts[pts.length - 1];
       const land = { t: prev[0] + f * dt, x: prev[1] + f * (s[0] - prev[1]), z: prev[3] + f * (s[2] - prev[3]) };
       pts.push([land.t, land.x, VB.R, land.z]);
-      return { pts, land, net, crossed, v: [s[3], s[4], s[5]] };
+      return { pts, land, net, crossed, yNet, v: [s[3], s[4], s[5]] };
     }
     pts.push([t, s[0], s[1], s[2]]);
   }
-  return { pts, land: null, net, crossed, v: [s[3], s[4], s[5]] };
+  return { pts, land: null, net, crossed, yNet, v: [s[3], s[4], s[5]] };
 }
-// Serve types. Speeds are at contact; tuned for recreational-to-strong amateur play.
+// Serve types. Speeds are at contact; contact heights are for a ~1.83 m amateur:
+// standing serves are hit at arm's reach on the toes (~2.2–2.35 m), jump serves 25–75 cm higher.
+// maxClr: how far above the tape the ball may cross — keeps driven serves from looping.
 const VB_TYPES = {
-  float:   { name: 'планер',   v: [13, 19],   spin: 0,   knuckle: 0.15, h: [2.15, 2.75], zc: [-9.45, -9.05], maxApex: 4.6 },
-  topspin: { name: 'крученая', v: [16.5, 24], spin: 38,  knuckle: 0,    h: [2.75, 3.15], zc: [-9.15, -8.75], maxApex: 4.8 },
-  lob:     { name: 'свеча',    v: [12.5, 15.5], spin: -6, knuckle: 0,   h: [1.0, 1.2], zc: [-9.5, -9.2], high: true, maxApex: 10 },
+  float:   { key: 'float',   name: 'планер с места',   jump: false, v: [11, 17.5],   spin: 0,  knuckle: 0.15, h: [2.2, 2.33],  zc: [-9.45, -9.12], maxClr: 1.2, maxApex: 4.3 },
+  jfloat:  { key: 'float',   name: 'планер в прыжке',  jump: true,  v: [13.5, 19.5], spin: 0,  knuckle: 0.15, h: [2.45, 2.72], zc: [-9.2, -8.8],   maxClr: 1.1, maxApex: 4.2 },
+  stand:   { key: 'topspin', name: 'силовая с места',  jump: false, v: [15, 21],     spin: 30, knuckle: 0,    h: [2.2, 2.33],  zc: [-9.45, -9.12], maxClr: 1.3, maxApex: 4.4 },
+  topspin: { key: 'topspin', name: 'силовая в прыжке', jump: true,  v: [17, 24],     spin: 38, knuckle: 0,    h: [2.6, 2.95],  zc: [-9.15, -8.75], maxClr: 1.2, maxApex: 4.4 },
+  lob:     { key: 'lob',     name: 'свеча',            jump: false, v: [12.5, 15.5], spin: -6, knuckle: 0,    h: [1.0, 1.2],   zc: [-9.5, -9.2], high: true, maxApex: 10 },
+};
+const VB_POOLS = {
+  all: ['float', 'float', 'jfloat', 'stand', 'stand', 'topspin', 'lob'],
+  float: ['float', 'float', 'jfloat'], topspin: ['stand', 'stand', 'topspin'], lob: ['lob'],
 };
 // Pick a target, then solve launch elevation (bisection) and aim so the ball lands there.
 function vbMakeServe(opts, rnd = Math.random) {
   const lvl = { easy: 0.88, mid: 1, hard: 1.12 }[opts.level] || 1;
-  for (let attempt = 0; attempt < 60; attempt++) {
-    const pool = opts.types === 'all' ? ['float', 'float', 'topspin', 'lob'] : [opts.types];
-    const key = pool[Math.floor(rnd() * pool.length)], T = VB_TYPES[key];
+  // the serve type is chosen once, so types that need more tries are not under-represented
+  const pool = VB_POOLS[opts.types] || [String(opts.types).replace('=', '')];   // '=jfloat' picks one exact type
+  const variant = pool[Math.floor(rnd() * pool.length)], T = VB_TYPES[variant], key = T.key;
+  for (let attempt = 0; attempt < 200; attempt++) {
     const out = rnd() < (opts.outShare ?? 0.15);
     let tx, tz;
     if (!out) { tx = (rnd() * 2 - 1) * 4.2; tz = 0.8 + rnd() * 8.0; }
@@ -106,7 +116,9 @@ function vbMakeServe(opts, rnd = Math.random) {
     const landedOut = Math.abs(res.land.x) > 4.5 + VB.R || res.land.z > 9 + VB.R;
     const apex = Math.max(...res.pts.map(p => p[2]));
     if (apex > T.maxApex) continue;
-    return { key, name: T.name, speed, kmh: Math.round(speed * 3.6), p0, el, az, sv, res, apex, out: landedOut,
+    const clr = res.yNet - VB.R - opts.netH;                      // gap between the ball and the tape
+    if (T.maxClr && clr > T.maxClr) continue;
+    return { key, variant, jumpServe: T.jump, clr, name: T.name, speed, kmh: Math.round(speed * 3.6), p0, el, az, sv, res, apex, out: landedOut,
              target: { x: tx, z: tz } };
   }
   return null;
@@ -115,9 +127,9 @@ function vbMakeServe(opts, rnd = Math.random) {
 // =====================================================================
 // Scene: the hall, the server with joints, the ball, sounds, replay
 // =====================================================================
-const RECV = { x: 0, z: 7.2, eye: 1.45 };
+const RECV = { x: 0, z: 7, eye: 1.45 };
 const VBT = { THINK: 1.4, REVEAL: 5.6, GAP: 0.6, EYE: 0.034 };
-const VB_POS = { left: -2.6, center: 0, right: 2.6 };
+const VB_POS = { left: -2.5, center: 0, right: 2.5 };
 let VBS = null;
 const vLerp = (a, b, k) => a + (b - a) * k;
 const vSm = k => (k <= 0 ? 0 : k >= 1 ? 1 : k * k * (3 - 2 * k));
@@ -208,24 +220,28 @@ const VB_READY = (x, z, face) => ({ x, z, face, lean: 0.38, shR: -0.75, elR: -0.
 // ---------- Serve technique: a different motion for each serve ----------
 const VB_ARM = 0.66;
 function vbServeTracks(an) {
-  const T = an.T, rel = an.rel, top = an.top, jf = an.jf, lob = an.lob, cA = an.cA;
+  const T = an.T, rel = an.rel, top = an.top, jt = an.jt, st = an.st, jf = an.jf, lob = an.lob, cA = an.cA;
   const swingT = lob ? -0.32 : -0.2, run = an.run;
   const tr = {
-    z: [[-T, -run], [an.tStart, -run], [an.tPlant, -0.12], [0, 0], [0.4, top ? 0.75 : jf ? 0.4 : 0.08]],
+    z: [[-T, -run], [an.tStart, -run], [an.tPlant, -0.12], [0, 0], [0.4, jt ? 0.75 : jf ? 0.4 : st ? 0.3 : 0.08]],
     lean: lob ? [[-T, 0.05], [swingT, 0.28], [0, 0.32], [0.35, 0.18]]
               : [[-T, 0.04], [swingT - 0.15, top ? -0.22 : -0.1], [0, 0.16], [0.3, top ? 0.5 : 0.14]],
     twist: lob ? [[-T, 0], [swingT, -0.35], [0, 0.1], [0.3, 0.25]]
                : [[-T, 0], [swingT - 0.12, top ? -0.7 : -0.45], [0, 0.18], [0.28, top ? 0.6 : 0.25]],
     elR: lob ? [[-T, -0.15], [0, -0.08], [0.3, -0.3]]
              : [[-T, -1.3], [rel, -1.2], [swingT - 0.1, -1.7], [0, -0.06], [0.25, top ? -0.5 : -0.12]],
-    kn: top || jf ? [[-T, 0.15], [an.tPlant - 0.12, 0.3], [an.tPlant, 1.0], [-0.12, 0.3], [0, 0.55], [0.3, 0.3], [0.38, 0.9], [0.75, 0.2]]
+    kn: an.jumpy ? [[-T, 0.15], [an.tPlant - 0.12, 0.3], [an.tPlant, 1.0], [-0.12, 0.3], [0, 0.55], [0.3, 0.3], [0.38, 0.9], [0.75, 0.2]]
                   : lob ? [[-T, 0.3], [swingT, 0.55], [0, 0.45], [0.4, 0.3]] : [[-T, 0.15], [-0.35, 0.4], [0, 0.12], [0.4, 0.2]],
   };
   if (lob) {         // underhand: arm swings back, then forward under the ball at the waist
     tr.shR = [[-T, -0.2], [rel, -0.3], [swingT, 1.0], [0, cA], [0.3, -1.7]];
     tr.shL = [[-T, -0.9], [rel, -0.95], [-0.06, -0.85], [0.15, 0.2], [0.4, 0.4]];
     tr.elL = [[-T, -0.6], [0, -0.55], [0.3, -0.3]];
-  } else if (top) {  // power serve: own toss with the hitting hand, three-step approach, full swing
+  } else if (st) {   // standing power serve: higher toss with the left hand, full swing, the arm follows through
+    tr.shR = [[-T, -0.95], [rel, -1.1], [swingT - 0.08, -3.75], [0, cA], [0.28, -0.5]];
+    tr.shL = [[-T, -0.95], [rel - 0.3, -0.8], [rel, -2.75], [swingT, -2.9], [0, -0.8], [0.3, 0.2]];
+    tr.elL = [[-T, -1.3], [rel, -0.05], [0, -0.6]];
+  } else if (jt) {   // jump power serve: own toss with the hitting hand, three-step approach, full swing
     tr.shR = [[-T, -0.95], [rel - 0.32, -0.8], [rel, -2.35], [rel + 0.35, -0.7], [an.tPlant - 0.05, 0.5], [swingT, -3.75], [0, cA], [0.26, -0.55]];
     tr.shL = [[-T, -0.95], [rel, -1.6], [rel + 0.35, -0.4], [an.tPlant - 0.05, 0.6], [swingT, -2.9], [0, -0.7], [0.3, 0.3]];
     tr.elL = [[-T, -1.3], [rel, -0.9], [an.tPlant, -0.3], [0, -0.7]];
@@ -237,14 +253,13 @@ function vbServeTracks(an) {
   an.tr = tr;
 }
 function vbServeAnim(sv, reach) {
-  const top = sv.key === 'topspin', lob = sv.key === 'lob';
-  const jump = lob ? 0 : Math.max(0, sv.p0[1] - (reach + 0.04));   // flat-foot reach + rising on the toes
-  const jf = !top && !lob && jump > 0.1;
-  const an = { top, lob, jf, jump, run: top ? 2.7 : jf ? 1.3 : 0.3,
-    T: top ? 2.5 : jf ? 2.1 : lob ? 1.8 : 1.7, rel: top ? -1.6 : jf ? -1.1 : lob ? -0.38 : -0.62,
-    cA: lob ? -0.45 : -2.95, dx: 0, dz: 0, tossHand: top ? 'R' : 'L' };
-  an.tStart = an.rel + 0.12; an.tPlant = top || jf ? -0.3 : -0.12; an.steps = top ? 3 : jf ? 2 : 1;
-  an.jumpy = top || jf;
+  const top = sv.key === 'topspin', lob = sv.key === 'lob', jumpy = !!sv.jumpServe;
+  const jt = top && jumpy, st = top && !jumpy, jf = sv.key === 'float' && jumpy;
+  const jump = jumpy ? Math.max(0.05, sv.p0[1] - (reach + 0.04)) : 0;
+  const an = { top, jt, st, lob, jf, jump, jumpy, run: jt ? 2.7 : jf ? 1.3 : st ? 0.45 : 0.3,
+    T: jt ? 2.5 : jf ? 2.1 : st ? 2.0 : lob ? 1.8 : 1.7, rel: jt ? -1.6 : jf ? -1.1 : st ? -0.95 : lob ? -0.38 : -0.62,
+    cA: lob ? -0.45 : -2.95, dx: 0, dz: 0, tossHand: jt ? 'R' : 'L' };
+  an.tStart = an.rel + 0.12; an.tPlant = jumpy ? -0.3 : -0.12; an.steps = jt ? 3 : jf ? 2 : 1;
   vbServeTracks(an);
   return an;
 }
@@ -259,7 +274,7 @@ function vbCalibrate(sv, fig) {
     const ex = tx - h.x, ey = ty - h.y, ez = tz - h.z;
     an.dx += ex; an.dz += ez;
     if (an.jumpy) an.jump = Math.max(0.05, an.jump + ey);
-    else if (ey > 0 && !an.lob) an.jump = Math.min(0.12, an.jump + ey);          // rising on the toes
+    else if (ey > 0 && !an.lob) an.jump = Math.min(0.14, an.jump + ey);          // rising on the toes
     else {                                                                       // reach lower: open the arm angle
       const s = Math.sin(an.cA);
       if (Math.abs(s) > 0.05) an.cA += ey / (VB_ARM * s) * 0.8;
@@ -545,7 +560,7 @@ function vbDescribe(sv) {
     where = d + s2;
   }
   const pace = sv.kmh < 55 ? 'медленная' : sv.kmh < 70 ? 'средняя' : 'быстрая';
-  const kind = sv.key === 'float' && sv.anim && sv.anim.jf ? 'планер в прыжке' : sv.key === 'topspin' ? 'силовая в прыжке' : sv.name;
+  const kind = sv.name;
   return { where, what: `${kind} · ${sv.kmh} км/ч · ${pace}` };
 }
 // reveal overlay: text + small top view (the 3D side replay is underneath)
@@ -578,6 +593,7 @@ function vbDrawReveal(f, sv) {
 // ---------- One serve ----------
 function vbNewServe(now) {
   RECV.x = VB_POS[cfg.vbPos] ?? 0;
+  RECV.z = Math.min(8.5, Math.max(3, Number(cfg.vbDepth) || 7));   // metres from the net
   const V = VBS;
   let sv = null;
   for (let i = 0; i < 8; i++) {           // keep only serves where the palm meets the ball exactly
@@ -626,7 +642,7 @@ function volleyFrame(now) {
     if (tRel >= 0) { vb.phase = 'flight'; vb.t0 = now; tRel = 0; }
     vbApplyPose(V.server, vbServePose(an, tRel));
     pos = vbBallPre(sv, tRel, V);
-    if (an.top && tRel > an.rel) V.ball.rotation.x += 14 * dt;      // the power-serve toss already spins
+    if (an.jt && tRel > an.rel) V.ball.rotation.x += 14 * dt;       // the jump-serve toss already spins
   }
   if (vb.phase === 'flight') {
     const tf = (now - vb.t0) / 1000;
@@ -700,7 +716,7 @@ window.vbShowLogImpl = vbShowLogImpl;
 function vbDebugShot(key, tRel, view, size) {
   if (!VBS) VBS = vbBuildScene();
   const V = VBS; let sv = null;
-  for (let i = 0; i < 60 && !sv; i++) { const c = vbMakeServe({ level: 'mid', types: key, netH: cfg.netH, outShare: 0 }); if (c && (view.jf == null || (vbServeAnim(c, V.reach).jf === view.jf))) sv = c; }
+  for (let i = 0; i < 60 && !sv; i++) { const c = vbMakeServe({ level: 'mid', types: key, netH: cfg.netH, outShare: 0 }); if (c) sv = c; }
   sv.anim = vbServeAnim(sv, V.reach); vbCalibrate(sv, V.server);
   vbApplyPose(V.server, vbServePose(sv.anim, sv.anim.rel)); V.server.g.updateMatrixWorld(true);
   const hp = new THREE.Vector3(); (sv.anim.tossHand === 'R' ? V.server.handR : V.server.handL).getWorldPosition(hp); sv.tossFrom = [hp.x, hp.y + 0.13, hp.z + 0.04];

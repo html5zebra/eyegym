@@ -212,13 +212,15 @@
     <p class="addlabel">Уровень подающих</p>
     <div class="seg" id="vbLevel"><button data-v="easy">Любители</button><button data-v="mid">Средний</button><button data-v="hard">Сильные</button></div>
     <p class="addlabel">Подачи</p>
-    <div class="seg" id="vbTypes"><button data-v="all">Все</button><button data-v="float">Планер</button><button data-v="topspin">Крученая</button><button data-v="lob">Свеча</button></div>
+    <div class="seg" id="vbTypes"><button data-v="all">Все</button><button data-v="float">Планер</button><button data-v="topspin">Силовая</button><button data-v="lob">Свеча</button></div>
     <p class="addlabel">Сколько полёта видно</p>
     <div class="seg" id="vbOccl"><button data-v="1">Весь</button><button data-v="0.6">60%</button><button data-v="0.4">40%</button></div>
     <p class="addlabel">Тень мяча</p>
     <div class="seg" id="vbShadow"><button data-v="1">Есть</button><button data-v="0">Нет</button></div>
     <p class="addlabel">Где ты стоишь на приёме</p>
     <div class="seg" id="vbPos"><button data-v="left">Слева</button><button data-v="center">По центру</button><button data-v="right">Справа</button></div>
+    <p class="addlabel">Сколько метров от сетки ты стоишь</p>
+    <div class="seg" id="vbDepth"><button data-v="5">5 м</button><button data-v="6">6 м</button><button data-v="7">7 м</button><button data-v="8">8 м</button></div>
     <p class="addlabel">Обзор</p>
     <div class="seg" id="vbFov"><button data-v="real">Как в жизни</button><button data-v="wide">Шире</button></div>
     <p class="addlabel">Высота сетки</p>
@@ -365,7 +367,7 @@ async function connectDb() {
 const cfg = Object.assign({
   weak: 'right', lensMM: 63, pxmm: 6.04, dur: 300, nod: 1, level: 4, history: [],
   mode: 'detect', voffMM: 0, sizePct: 100, fusionHistory: [], crossHistory: [], strongPct: 60, loomSpeed: 'norm',
-  stereoHistory: [], progSel: 'daily', savedAt: 0, music: 1, picsMode: 'mix', vbLevel: 'mid', vbTypes: 'all', vbOccl: 1, vbShadow: 1, netH: 2.43, vbFov: 'real', vbPos: 'center',
+  stereoHistory: [], progSel: 'daily', savedAt: 0, music: 1, picsMode: 'mix', vbLevel: 'mid', vbTypes: 'all', vbOccl: 1, vbShadow: 1, netH: 2.43, vbFov: 'real', vbPos: 'center', vbDepth: 7,
   programs: [{ id: 'daily', name: 'Ежедневная', items: [
     { m: 'eyes', min: 2 }, { m: 'stream', min: 5 }, { m: 'loom', min: 3 }, { m: 'road', min: 3 }, { m: 'rds', min: 2 },
   ] }],
@@ -401,6 +403,7 @@ bindSeg('vbShadow', 'vbShadow', Number);
 bindSeg('netH', 'netH', Number);
 bindSeg('vbFov', 'vbFov', String);
 bindSeg('vbPos', 'vbPos', String);
+bindSeg('vbDepth', 'vbDepth', Number);
 const LEDE = {
   detect: 'Оба глаза видят рамку и крестик в центре. Сильный глаз видит мерцающие полосы, слабый в случайный момент видит кольцо. Заметил кольцо — кивни или нажми.',
   fusion: 'Оба глаза видят одну и ту же картинку, и она медленно разъезжается. Кивни, когда начнёт двоиться. Потом картинки съезжаются обратно — кивни, когда снова станет одна.',
@@ -412,7 +415,7 @@ const PASSIVE = { stream: 1, loom: 1, jump: 1, eyes: 1, road: 1, rds: 1, neon: 1
 LEDE.road = 'Без кнопок. Едешь по дороге: разметка бежит навстречу, по сторонам проплывают столбики и знаки, всё в настоящем стерео. Смотри вперёд и по сторонам, как за рулём.';
 LEDE.neon = 'Без кнопок. Ретровейв: неоновая сетка до горизонта, закатное солнце, горы и неоновые ворота, сквозь которые ты проезжаешь. Всё в стерео, с синтвейвом.';
 LEDE.pics = 'Без кнопок. Твои картинки в трёх режимах: «Кусочки» — каждый глаз видит свои части картинки, целой она бывает только двумя глазами; «Ближе-дальше» — картинка плавно приближается и удаляется; «Слияние» — медленно разъезжается, держи её одной.';
-LEDE.volley = 'Без кнопок. Ты на приёме в нашем зале, соперник подаёт: планер, силовая в прыжке или свеча, с реальной физикой полёта. Читай подачу ещё по подбросу и разбегу. Пока мяч летит, говори про себя, куда он упадёт. Потом замедленный повтор сбоку и вид сверху.';
+LEDE.volley = 'Без кнопок. Ты на приёме в нашем зале, соперник подаёт: планер (с места и в прыжке), силовую (с места и в прыжке) или свечу, с реальной физикой полёта. Читай подачу ещё по подбросу и разбегу. Пока мяч летит, говори про себя, куда он упадёт. Потом замедленный повтор сбоку и вид сверху.';
 LEDE.rds = 'Без кнопок. Поле из случайных точек, внутри спрятана фигура — увидеть её можно только стерео, одним глазом её нет. В конце каждого уровня покажу, какая была фигура, а после сессии спрошу, до какого уровня ты её видел.';
 const MODE_NAMES = { eyes: 'Мышцы глаз', stream: 'Дихоптический поток', loom: 'Приближение', road: 'Дорога',
   rds: 'Стерео-фигуры', jump: 'Ближе-дальше', detect: 'Детектор подавления', fusion: 'Фузионный резерв',
@@ -1891,7 +1894,7 @@ document.getElementById('picsInput').addEventListener('change', async e => {
 loadPics();
 
 // ---- Auto-update for the home-screen app (iOS caches it hard) ----
-const APP_VERSION = '2026.11.11-1';
+const APP_VERSION = '2026.11.17-1';
 document.getElementById('ver').textContent = 'версия ' + APP_VERSION;
 async function checkUpdate() {
   if (S.active || location.protocol === 'file:') return;
